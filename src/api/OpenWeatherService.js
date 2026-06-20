@@ -1,5 +1,6 @@
 const MET_API_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact";
 const NOMINATIM_API_URL = "https://nominatim.openstreetmap.org/search";
+const NOMINATIM_REVERSE_API_URL = "https://nominatim.openstreetmap.org/reverse";
 
 function formatDateTime(isoString) {
   return isoString.replace("T", " ").substring(0, 19);
@@ -144,4 +145,47 @@ export async function fetchCities(input) {
       };
     }),
   };
+}
+
+export async function reverseGeocode(lat, lon) {
+  const params = new URLSearchParams({
+    lat,
+    lon,
+    format: "jsonv2",
+    addressdetails: "1",
+    "accept-language": "nb",
+  });
+
+  const response = await fetch(`${NOMINATIM_REVERSE_API_URL}?${params.toString()}`);
+
+  if (!response.ok) {
+    throw new Error("Kunne ikke finne stedsnavn for posisjonen.");
+  }
+
+  const place = await response.json();
+  const address = place.address || {};
+  const name =
+    address.neighbourhood ||
+    address.suburb ||
+    address.city_district ||
+    address.city ||
+    address.town ||
+    address.village ||
+    address.municipality ||
+    place.name ||
+    place.display_name?.split(",")[0] ||
+    "Din posisjon";
+
+  const region =
+    address.city ||
+    address.town ||
+    address.village ||
+    address.municipality ||
+    address.county ||
+    address.country_code?.toUpperCase() ||
+    "";
+
+  return region && !name.toLowerCase().includes(region.toLowerCase())
+    ? `${name}, ${region}`
+    : name;
 }

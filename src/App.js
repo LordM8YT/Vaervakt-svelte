@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { Box, Container, Grid, Link, SvgIcon, Typography } from "@mui/material";
+import { Box, Button, Container, Grid, Link, SvgIcon, Typography } from "@mui/material";
 import Search from "./components/Search/Search";
 import WeeklyForecast from "./components/WeeklyForecast/WeeklyForecast";
 import TodayWeather from "./components/TodayWeather/TodayWeather";
-import { fetchWeatherData } from "./api/OpenWeatherService";
+import { fetchWeatherData, reverseGeocode } from "./api/OpenWeatherService";
 import UTCDatetime from "./components/Reusable/UTCDatetime";
 import LoadingBox from "./components/Reusable/LoadingBox";
 import { ReactComponent as SplashIcon } from "./assets/splash-icon.svg";
 import Logo from "./assets/logo3.png";
 import ErrorBox from "./components/Reusable/ErrorBox";
+import VaervaktFeatures from "./components/VaervaktFeatures/VaervaktFeatures";
 import { ALL_DESCRIPTIONS } from "./utilities/DateConstants";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import {
@@ -22,9 +23,21 @@ function App() {
   const [weekForecast, setWeekForecast] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [locationStatus, setLocationStatus] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState({
+    name: "Kristiansand, NO",
+    lat: 58.1467,
+    lon: 7.9956,
+  });
 
   const searchChangeHandler = async (enteredData, showLoading = true) => {
+    if (!enteredData?.value) return;
     const [latitude, longitude] = enteredData?.value?.split(" ");
+    const nextLocation = {
+      name: enteredData.label,
+      lat: Number(latitude),
+      lon: Number(longitude),
+    };
 
     setError(false);
     if (showLoading) setIsLoading(true);
@@ -47,6 +60,7 @@ function App() {
 
       setTodayForecast([...all_today_forecasts_list]);
       setTodayWeather({ city: enteredData.label, ...todayWeatherResponse });
+      setSelectedLocation(nextLocation);
       setWeekForecast({
         city: enteredData.label,
         list: all_week_forecasts_list,
@@ -56,6 +70,41 @@ function App() {
     }
 
     if (showLoading) setIsLoading(false);
+  };
+
+  const usePositionHandler = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus("Nettleseren støtter ikke posisjon.");
+      return;
+    }
+
+    setLocationStatus("Finner posisjonen din...");
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        const latitude = coords.latitude.toFixed(4);
+        const longitude = coords.longitude.toFixed(4);
+        const label = await reverseGeocode(latitude, longitude).catch(
+          () => "Din posisjon"
+        );
+
+        await searchChangeHandler(
+          {
+            value: `${latitude} ${longitude}`,
+            label,
+          },
+          true
+        );
+        setLocationStatus(`Viser vær for ${label}.`);
+      },
+      () => {
+        setLocationStatus("Fikk ikke tilgang til posisjon. Søk etter sted i stedet.");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000,
+      }
+    );
   };
 
   useEffect(() => {
@@ -115,6 +164,7 @@ function App() {
         <Grid item xs={12} md={6}>
           <WeeklyForecast data={weekForecast} />
         </Grid>
+        <VaervaktFeatures selectedLocation={selectedLocation} weather={todayWeather} />
       </React.Fragment>
     );
   }
@@ -186,6 +236,7 @@ function App() {
             sx={{
               width: "100%",
               marginBottom: "1rem",
+              gap: "0.75rem",
             }}
           >
             <Box
@@ -198,23 +249,52 @@ function App() {
               src={Logo}
             />
 
-            <UTCDatetime />
-            <Link
-              href="https://github.com/LordM8YT/Vaervakt-react"
-              target="_blank"
-              underline="none"
-              sx={{ display: "flex" }}
-            >
-              <GitHubIcon
+            <Box display="flex" alignItems="center" justifyContent="flex-end" gap="0.7rem">
+              <Button
+                onClick={usePositionHandler}
+                size="small"
                 sx={{
-                  fontSize: { xs: "20px", sm: "22px", md: "26px" },
-                  color: "white",
-                  "&:hover": { color: "#2d95bd" },
+                  color: "#e2e8f0",
+                  border: "1px solid rgba(148, 163, 184, 0.24)",
+                  borderRadius: "999px",
+                  px: { xs: 1, sm: 1.5 },
+                  fontSize: { xs: "0.68rem", sm: "0.78rem" },
+                  textTransform: "none",
+                  whiteSpace: "nowrap",
                 }}
-              />
-            </Link>
+              >
+                Bruk posisjon
+              </Button>
+              <UTCDatetime />
+              <Link
+                href="https://github.com/LordM8YT/Vaervakt-react"
+                target="_blank"
+                underline="none"
+                sx={{ display: { xs: "none", sm: "flex" } }}
+              >
+                <GitHubIcon
+                  sx={{
+                    fontSize: { xs: "20px", sm: "22px", md: "26px" },
+                    color: "white",
+                    "&:hover": { color: "#2d95bd" },
+                  }}
+                />
+              </Link>
+            </Box>
           </Box>
           <Search onSearchChange={searchChangeHandler} />
+          {locationStatus && (
+            <Typography
+              sx={{
+                color: "#94a3b8",
+                fontSize: "0.82rem",
+                mt: 1,
+                textAlign: "center",
+              }}
+            >
+              {locationStatus}
+            </Typography>
+          )}
         </Grid>
         {appContent}
       </Grid>
