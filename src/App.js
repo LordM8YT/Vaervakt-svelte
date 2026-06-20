@@ -4,7 +4,6 @@ import Search from "./components/Search/Search";
 import WeeklyForecast from "./components/WeeklyForecast/WeeklyForecast";
 import TodayWeather from "./components/TodayWeather/TodayWeather";
 import { fetchWeatherData } from "./api/OpenWeatherService";
-import { transformDateFormat } from "./utilities/DatetimeUtils";
 import UTCDatetime from "./components/Reusable/UTCDatetime";
 import LoadingBox from "./components/Reusable/LoadingBox";
 import { ReactComponent as SplashIcon } from "./assets/splash-icon.svg";
@@ -30,7 +29,6 @@ function App() {
     setError(false);
     if (showLoading) setIsLoading(true);
 
-    const currentDate = transformDateFormat();
     const date = new Date();
     const dt_now = Math.floor(date.getTime() / 1000);
 
@@ -39,7 +37,6 @@ function App() {
         await fetchWeatherData(latitude, longitude);
       const all_today_forecasts_list = getTodayForecastWeather(
         weekForecastResponse,
-        currentDate,
         dt_now
       );
 

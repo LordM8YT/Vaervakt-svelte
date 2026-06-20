@@ -1,6 +1,6 @@
 import { MONTHS, DAYS } from './DateConstants';
 
-const date = new Date();
+const OSLO_TIME_ZONE = 'Europe/Oslo';
 
 export function getWeekDays() {
   const dayInAWeek = new Date().getDay();
@@ -10,49 +10,61 @@ export function getWeekDays() {
   return days;
 }
 
-export function getDayMonthFromDate() {
+export function getDayMonthFromDate(date = new Date()) {
   const month = MONTHS[date.getMonth()].slice(0, 3);
-  const day = date.getUTCDate();
+  const day = date.getDate();
 
   return day + ' ' + month;
 }
 
 export function transformDateFormat() {
-  const month = date.toLocaleString('en-US', { month: '2-digit' });
-  const day = date.toLocaleString('en-US', { day: '2-digit' });
-  const year = date.getFullYear();
-  const time = date.toLocaleString('en-US', {
+  const month = new Date().toLocaleString('en-US', { month: '2-digit' });
+  const day = new Date().toLocaleString('en-US', { day: '2-digit' });
+  const year = new Date().getFullYear();
+  const time = new Date().toLocaleString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hourCycle: 'h23',
   });
 
-  const newFormatDate = year.toString().concat('-', month, '-', day, ' ', time);
-  return newFormatDate;
+  return year.toString().concat('-', month, '-', day, ' ', time);
+}
+
+export function getLocalDatetime() {
+  const now = new Date();
+  const date = now.toLocaleDateString('nb-NO', {
+    day: '2-digit',
+    month: 'short',
+    timeZone: OSLO_TIME_ZONE,
+  });
+  const time = now.toLocaleTimeString('nb-NO', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: OSLO_TIME_ZONE,
+  });
+
+  return `${date} kl. ${time}`;
 }
 
 export function getUTCDatetime() {
-  const utcTime = date.toLocaleString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-    timeZone: 'UTC',
-  });
-
-  const isoDateString = new Date().toISOString();
-  const utcDate = isoDateString.split('T')[0].concat(' ', utcTime);
-  return utcDate;
+  return getLocalDatetime();
 }
 
 export function getUTCTime() {
-  const utcTime = date.toLocaleString('en-US', {
+  return new Date().toLocaleString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hourCycle: 'h23',
     timeZone: 'UTC',
   });
+}
 
-  return utcTime;
+export function formatForecastHour(timestampInSeconds) {
+  return new Date(timestampInSeconds * 1000).toLocaleTimeString('nb-NO', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: OSLO_TIME_ZONE,
+  });
 }
