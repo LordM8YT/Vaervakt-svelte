@@ -40,44 +40,66 @@ const CATEGORIES = [
   { value: "tip", label: "Tips" },
 ];
 
-const panelSx = {
-  border: "1px solid rgba(148, 163, 184, 0.18)",
-  borderRadius: "24px",
+const sectionSx = {
+  width: "100%",
+  borderRadius: { xs: "18px", sm: "22px" },
   background:
-    "linear-gradient(145deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.72))",
-  boxShadow: "0 24px 60px rgba(2, 6, 23, 0.34)",
-  backdropFilter: "blur(18px)",
-  color: "#e2e8f0",
-  p: { xs: 2, sm: 2.5 },
+    "linear-gradient(0deg, rgba(255, 255, 255, .045) 0%, rgba(171, 203, 222, .07) 100%)",
+  boxShadow:
+    "rgba(0, 0, 0, 0.12) 0px 12px 24px -10px, inset 0 1px 0 rgba(255,255,255,.06)",
+  border: "1px solid rgba(255,255,255,.08)",
+  p: { xs: 1.3, sm: 1.8 },
+};
+
+const cardSx = {
+  borderRadius: { xs: "14px", sm: "18px" },
+  background:
+    "linear-gradient(180deg, rgba(9, 16, 36, .72) 0%, rgba(7, 12, 27, .86) 100%)",
+  border: "1px solid rgba(255,255,255,.075)",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,.04)",
 };
 
 const inputSx = {
   "& .MuiInputBase-root": {
-    borderRadius: "16px",
-    backgroundColor: "rgba(2, 6, 23, 0.42)",
-    color: "#e2e8f0",
+    minHeight: "44px",
+    borderRadius: "12px",
+    backgroundColor: "rgba(2, 6, 23, 0.35)",
+    color: "rgba(255,255,255,.9)",
     fontSize: "16px",
+    fontFamily: "Poppins",
   },
   "& .MuiInputBase-input": {
     fontSize: "16px",
   },
   "& .MuiInputLabel-root": {
-    color: "#94a3b8",
+    color: "rgba(255,255,255,.55)",
+    fontFamily: "Poppins",
   },
   "& .MuiInputLabel-root.Mui-focused": {
     color: "#38bdf8",
   },
   "& .MuiOutlinedInput-notchedOutline": {
-    borderColor: "rgba(148, 163, 184, 0.18)",
+    borderColor: "rgba(255,255,255,.1)",
   },
   "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
-    borderColor: "rgba(56, 189, 248, 0.46)",
+    borderColor: "rgba(56, 189, 248, 0.45)",
   },
   "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
     borderColor: "#38bdf8",
   },
   "& .MuiSelect-icon": {
-    color: "#94a3b8",
+    color: "rgba(255,255,255,.65)",
+  },
+};
+
+const selectMenuProps = {
+  PaperProps: {
+    sx: {
+      borderRadius: "14px",
+      backgroundColor: "#101a33",
+      color: "rgba(255,255,255,.9)",
+      border: "1px solid rgba(255,255,255,.1)",
+    },
   },
 };
 
@@ -112,48 +134,98 @@ function getWeatherTemp(weather) {
   return Number.isFinite(temp) ? Math.round(temp) : "";
 }
 
+function getConditionIcon(condition = "") {
+  const match = CONDITIONS.find((item) =>
+    condition.toLowerCase().includes(item.value.toLowerCase().split(" ")[0])
+  );
+  return match?.icon || "🌦️";
+}
+
 function EmptyState({ children }) {
   return (
     <Box
       sx={{
-        border: "1px dashed rgba(148, 163, 184, 0.22)",
-        borderRadius: "18px",
-        p: 2,
-        color: "#94a3b8",
+        ...cardSx,
+        p: 1.6,
+        borderStyle: "dashed",
+        color: "rgba(255,255,255,.58)",
       }}
     >
-      <Typography sx={{ fontSize: "0.92rem" }}>{children}</Typography>
+      <Typography sx={{ fontSize: { xs: "0.78rem", sm: "0.86rem" } }}>
+        {children}
+      </Typography>
     </Box>
   );
 }
 
-function SectionTitle({ eyebrow, title, action }) {
+function SectionHeading({ title, subtitle, action }) {
   return (
     <Stack
-      direction="row"
+      direction={{ xs: "column", sm: "row" }}
+      alignItems={{ xs: "stretch", sm: "center" }}
       justifyContent="space-between"
-      alignItems="flex-start"
-      gap={2}
-      sx={{ mb: 1.5 }}
+      gap={1.2}
+      sx={{ mb: 1.4 }}
     >
       <Box>
         <Typography
+          variant="h5"
+          component="h2"
           sx={{
-            color: "#38bdf8",
-            fontSize: "0.72rem",
-            fontWeight: 800,
-            letterSpacing: "0.14em",
+            color: "rgba(255,255,255,.74)",
+            fontFamily: "Roboto Condensed",
+            fontSize: { xs: "12px", sm: "16px", md: "18px" },
+            fontWeight: 600,
+            letterSpacing: ".05em",
+            lineHeight: 1,
             textTransform: "uppercase",
           }}
         >
-          {eyebrow}
-        </Typography>
-        <Typography sx={{ color: "#f8fafc", fontSize: "1.1rem", fontWeight: 800 }}>
           {title}
         </Typography>
+        {subtitle && (
+          <Typography
+            sx={{
+              color: "rgba(255,255,255,.42)",
+              fontSize: { xs: "0.74rem", sm: "0.82rem" },
+              mt: 0.7,
+            }}
+          >
+            {subtitle}
+          </Typography>
+        )}
       </Box>
       {action}
     </Stack>
+  );
+}
+
+function WeatherPillButton({ children, selected, ...props }) {
+  return (
+    <Button
+      size="small"
+      {...props}
+      sx={{
+        minWidth: "auto",
+        borderRadius: "999px",
+        px: 1.35,
+        py: 0.55,
+        color: selected ? "#06111f" : "rgba(255,255,255,.78)",
+        backgroundColor: selected ? "#38bdf8" : "rgba(255,255,255,.06)",
+        border: selected
+          ? "1px solid rgba(56,189,248,.4)"
+          : "1px solid rgba(255,255,255,.1)",
+        fontSize: "0.72rem",
+        fontWeight: 700,
+        textTransform: "none",
+        "&:hover": {
+          backgroundColor: selected ? "#7dd3fc" : "rgba(255,255,255,.1)",
+        },
+        ...(props.sx || {}),
+      }}
+    >
+      {children}
+    </Button>
   );
 }
 
@@ -326,29 +398,49 @@ function VaervaktFeatures({ selectedLocation, weather }) {
   };
 
   return (
-    <Grid item xs={12} sx={{ mt: 2, mb: { xs: 8, md: 2 } }}>
-      <Grid container spacing={2}>
+    <Grid item xs={12} sx={{ mt: { xs: 2.5, md: 3.5 }, mb: { xs: 8, md: 3 } }}>
+      <Stack spacing={2}>
         {notice && (
-          <Grid item xs={12}>
-            <Alert
-              severity={notice.severity}
-              onClose={() => setNotice(null)}
-              sx={{
-                borderRadius: "18px",
-                backgroundColor: "rgba(15, 23, 42, 0.92)",
-                color: "#e2e8f0",
-              }}
-            >
-              {notice.text}
-            </Alert>
-          </Grid>
+          <Alert
+            severity={notice.severity}
+            onClose={() => setNotice(null)}
+            sx={{
+              borderRadius: "16px",
+              backgroundColor: "rgba(9, 16, 36, .92)",
+              color: "rgba(255,255,255,.88)",
+              border: "1px solid rgba(255,255,255,.08)",
+            }}
+          >
+            {notice.text}
+          </Alert>
         )}
 
-        <Grid item xs={12} md={5}>
-          <Stack spacing={2}>
-            <Box sx={panelSx}>
-              <SectionTitle eyebrow="Rapporter" title="Send lokalt vær" />
-              <Stack component="form" spacing={1.5} onSubmit={handleReportSubmit}>
+        <Box sx={sectionSx}>
+          <SectionHeading
+            title="Lokalt fra Værvakt"
+            subtitle={`Rapporter og observasjoner nær ${location.name}.`}
+            action={
+              <WeatherPillButton onClick={refreshCommunityData} disabled={isLoading}>
+                Oppdater
+              </WeatherPillButton>
+            }
+          />
+
+          <Grid container spacing={1.4} alignItems="stretch">
+            <Grid item xs={12} md={5}>
+              <Stack component="form" spacing={1.2} onSubmit={handleReportSubmit} sx={{ ...cardSx, p: 1.5, height: "100%" }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
+                  <Box>
+                    <Typography sx={{ color: "white", fontWeight: 700, fontSize: "0.96rem" }}>
+                      Send værrapport
+                    </Typography>
+                    <Typography sx={{ color: "rgba(255,255,255,.46)", fontSize: "0.75rem" }}>
+                      Vises sammen med varselet for stedet ditt.
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: "1.8rem", lineHeight: 1 }}>🌡️</Typography>
+                </Stack>
+
                 <TextField
                   label="Navn"
                   value={reportForm.username}
@@ -361,7 +453,8 @@ function VaervaktFeatures({ selectedLocation, weather }) {
                   fullWidth
                   sx={inputSx}
                 />
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+
+                <Stack direction={{ xs: "column", sm: "row", md: "column", lg: "row" }} spacing={1}>
                   <TextField
                     label="Temperatur"
                     value={reportForm.temperature}
@@ -386,6 +479,7 @@ function VaervaktFeatures({ selectedLocation, weather }) {
                       }))
                     }
                     fullWidth
+                    SelectProps={{ MenuProps: selectMenuProps }}
                     sx={inputSx}
                   >
                     {CONDITIONS.map((condition) => (
@@ -395,75 +489,31 @@ function VaervaktFeatures({ selectedLocation, weather }) {
                     ))}
                   </TextField>
                 </Stack>
-                <Typography sx={{ color: "#94a3b8", fontSize: "0.82rem" }}>
-                  Rapporten kobles til {location.name}.
-                </Typography>
+
                 <Button
                   type="submit"
                   variant="contained"
                   disabled={isLoading}
                   sx={{
-                    borderRadius: "999px",
-                    py: 1.2,
+                    borderRadius: "14px",
+                    py: 1.05,
+                    color: "#06111f",
                     fontWeight: 800,
-                    background: "linear-gradient(135deg, #38bdf8, #0ea5e9)",
+                    background: "linear-gradient(135deg, #7dd3fc, #38bdf8)",
+                    boxShadow: "0 10px 24px rgba(56, 189, 248, .18)",
+                    textTransform: "none",
+                    "&:hover": {
+                      background: "linear-gradient(135deg, #bae6fd, #38bdf8)",
+                    },
                   }}
                 >
                   Send værrapport
                 </Button>
               </Stack>
-            </Box>
+            </Grid>
 
-            <Box sx={panelSx}>
-              <SectionTitle eyebrow="Støtt" title="Hold Værvakt annonsefri" />
-              <Typography sx={{ color: "#cbd5e1", mb: 2, fontSize: "0.94rem" }}>
-                Hvis du liker prosjektet, kan du støtte videre utvikling med Vipps.
-              </Typography>
-              <Button
-                component="a"
-                href={VIPPS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                fullWidth
-                sx={{
-                  borderRadius: "999px",
-                  py: 1.2,
-                  color: "#fff",
-                  fontWeight: 900,
-                  background: "linear-gradient(135deg, #ff5b24, #ff2d55)",
-                  textTransform: "none",
-                }}
-              >
-                Støtt med Vipps
-              </Button>
-            </Box>
-          </Stack>
-        </Grid>
-
-        <Grid item xs={12} md={7}>
-          <Stack spacing={2}>
-            <Box sx={panelSx}>
-              <SectionTitle
-                eyebrow="Lokalt"
-                title="Siste rapporter"
-                action={
-                  <Button
-                    size="small"
-                    onClick={refreshCommunityData}
-                    disabled={isLoading}
-                    sx={{
-                      color: "#e2e8f0",
-                      border: "1px solid rgba(148, 163, 184, 0.22)",
-                      borderRadius: "999px",
-                      px: 1.5,
-                    }}
-                  >
-                    Oppdater
-                  </Button>
-                }
-              />
-
-              <Stack spacing={1}>
+            <Grid item xs={12} md={7}>
+              <Stack spacing={0.8}>
                 {reports.length === 0 && (
                   <EmptyState>Ingen lokale rapporter her enda. Bli førstemann.</EmptyState>
                 )}
@@ -473,67 +523,127 @@ function VaervaktFeatures({ selectedLocation, weather }) {
                     direction="row"
                     alignItems="center"
                     justifyContent="space-between"
-                    gap={2}
+                    gap={1.5}
                     sx={{
-                      border: "1px solid rgba(148, 163, 184, 0.14)",
-                      borderRadius: "18px",
-                      p: 1.4,
-                      backgroundColor: "rgba(2, 6, 23, 0.28)",
+                      ...cardSx,
+                      px: { xs: 1.2, sm: 1.5 },
+                      py: 1.05,
                     }}
                   >
-                    <Stack direction="row" alignItems="center" gap={1.2}>
-                      <Typography sx={{ fontSize: "1.6rem" }}>{report.icon}</Typography>
-                      <Box>
-                        <Typography sx={{ color: "#f8fafc", fontWeight: 800 }}>
+                    <Stack direction="row" alignItems="center" gap={1.1} minWidth={0}>
+                      <Box
+                        sx={{
+                          width: 38,
+                          height: 38,
+                          flex: "0 0 auto",
+                          borderRadius: "14px",
+                          display: "grid",
+                          placeItems: "center",
+                          background:
+                            "radial-gradient(circle at 35% 30%, rgba(255,255,255,.22), rgba(56,189,248,.08) 55%, rgba(255,255,255,.04))",
+                          fontSize: "1.25rem",
+                        }}
+                      >
+                        {report.icon || getConditionIcon(report.condition)}
+                      </Box>
+                      <Box minWidth={0}>
+                        <Typography sx={{ color: "white", fontWeight: 700, fontSize: "0.88rem", lineHeight: 1.2 }}>
                           {report.condition}
                         </Typography>
-                        <Typography sx={{ color: "#94a3b8", fontSize: "0.8rem" }}>
+                        <Typography
+                          noWrap
+                          sx={{ color: "rgba(255,255,255,.45)", fontSize: "0.72rem", mt: 0.35 }}
+                        >
                           {report.reporter} · {report.location} · {report.time}
                         </Typography>
                       </Box>
                     </Stack>
-                    <Typography sx={{ color: "#f8fafc", fontWeight: 900 }}>
+                    <Typography sx={{ color: "white", fontWeight: 800, fontSize: "1rem" }}>
                       {report.temp}°
                     </Typography>
                   </Stack>
                 ))}
               </Stack>
+            </Grid>
+          </Grid>
+        </Box>
+
+        <Box
+          sx={{
+            ...cardSx,
+            p: { xs: 1.4, sm: 1.6 },
+            borderRadius: { xs: "18px", sm: "22px" },
+            background:
+              "linear-gradient(135deg, rgba(255,91,36,.17), rgba(255,45,85,.08) 48%, rgba(9,16,36,.82))",
+          }}
+        >
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            alignItems={{ xs: "stretch", sm: "center" }}
+            justifyContent="space-between"
+            gap={1.4}
+          >
+            <Box>
+              <Typography sx={{ color: "white", fontWeight: 800, fontSize: "0.98rem" }}>
+                Hold Værvakt annonsefri
+              </Typography>
+              <Typography sx={{ color: "rgba(255,255,255,.52)", fontSize: "0.78rem", mt: 0.3 }}>
+                Vipps-støtte går til drift, API-er og videre utvikling.
+              </Typography>
             </Box>
+            <Button
+              component="a"
+              href={VIPPS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{
+                borderRadius: "14px",
+                px: 2.2,
+                py: 1,
+                color: "#fff",
+                fontWeight: 900,
+                background: "linear-gradient(135deg, #ff7a3d, #ff2d55)",
+                textTransform: "none",
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #ff8f5c, #ff4770)",
+                },
+              }}
+            >
+              Støtt med Vipps
+            </Button>
+          </Stack>
+        </Box>
 
-            <Box sx={panelSx}>
-              <SectionTitle
-                eyebrow="Værhub"
-                title="Lokal prat"
-                action={
-                  <Stack direction="row" spacing={0.75}>
-                    <Chip
-                      label="Nyeste"
-                      onClick={() => setSort("new")}
-                      size="small"
-                      sx={{
-                        color: sort === "new" ? "#020617" : "#cbd5e1",
-                        backgroundColor: sort === "new" ? "#38bdf8" : "rgba(148,163,184,.12)",
-                      }}
-                    />
-                    <Chip
-                      label="Topp"
-                      onClick={() => setSort("top")}
-                      size="small"
-                      sx={{
-                        color: sort === "top" ? "#020617" : "#cbd5e1",
-                        backgroundColor: sort === "top" ? "#38bdf8" : "rgba(148,163,184,.12)",
-                      }}
-                    />
-                  </Stack>
-                }
-              />
+        <Box sx={sectionSx}>
+          <SectionHeading
+            title="Værhub"
+            subtitle="Spør, varsle og del små lokale værtegn."
+            action={
+              <Stack direction="row" spacing={0.75}>
+                <WeatherPillButton selected={sort === "new"} onClick={() => setSort("new")}>
+                  Nyeste
+                </WeatherPillButton>
+                <WeatherPillButton selected={sort === "top"} onClick={() => setSort("top")}>
+                  Topp
+                </WeatherPillButton>
+              </Stack>
+            }
+          />
 
-              {!profile ? (
-                <Stack component="form" spacing={1.3} onSubmit={handleProfileSubmit} sx={{ mb: 2 }}>
-                  <Typography sx={{ color: "#94a3b8", fontSize: "0.88rem" }}>
-                    Lag en enkel lokal profil med bare navn og PIN. Ingen e-post.
-                  </Typography>
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1.3}>
+          <Grid container spacing={1.4}>
+            <Grid item xs={12} md={5}>
+              <Stack spacing={1.2} sx={{ ...cardSx, p: 1.5 }}>
+                {!profile ? (
+                  <Stack component="form" spacing={1.15} onSubmit={handleProfileSubmit}>
+                    <Box>
+                      <Typography sx={{ color: "white", fontWeight: 700, fontSize: "0.94rem" }}>
+                        Lokal profil
+                      </Typography>
+                      <Typography sx={{ color: "rgba(255,255,255,.45)", fontSize: "0.74rem", mt: 0.25 }}>
+                        Bare navn og PIN. Ingen e-post eller tracking-konto.
+                      </Typography>
+                    </Box>
                     <TextField
                       label="Navn"
                       value={profileForm.displayName}
@@ -560,73 +670,52 @@ function VaervaktFeatures({ selectedLocation, weather }) {
                       inputProps={{ inputMode: "numeric" }}
                       sx={inputSx}
                     />
+                    <Stack direction="row" spacing={1}>
+                      <WeatherPillButton type="submit" selected>
+                        Logg inn
+                      </WeatherPillButton>
+                      <WeatherPillButton type="button" onClick={() => handleProfileAction("register")}>
+                        Opprett
+                      </WeatherPillButton>
+                    </Stack>
                   </Stack>
-                  <Stack direction="row" spacing={1}>
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      sx={{ borderRadius: "999px", textTransform: "none", fontWeight: 800 }}
-                    >
-                      Logg inn
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => handleProfileAction("register")}
-                      sx={{
-                        borderRadius: "999px",
-                        textTransform: "none",
-                        color: "#cbd5e1",
-                        border: "1px solid rgba(148,163,184,.22)",
-                      }}
-                    >
-                      Opprett
-                    </Button>
+                ) : (
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
+                    <Box>
+                      <Typography sx={{ color: "white", fontWeight: 700, fontSize: "0.94rem" }}>
+                        {profile.user.displayName}
+                      </Typography>
+                      <Typography sx={{ color: "rgba(255,255,255,.45)", fontSize: "0.74rem" }}>
+                        Klar til å poste og stemme.
+                      </Typography>
+                    </Box>
+                    <WeatherPillButton onClick={logout}>Logg ut</WeatherPillButton>
                   </Stack>
-                </Stack>
-              ) : (
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  sx={{
-                    mb: 2,
-                    border: "1px solid rgba(56,189,248,.18)",
-                    borderRadius: "18px",
-                    p: 1.2,
-                    backgroundColor: "rgba(14,165,233,.08)",
-                  }}
-                >
-                  <Typography sx={{ color: "#cbd5e1", fontSize: "0.9rem" }}>
-                    Innlogget som <strong>{profile.user.displayName}</strong>
-                  </Typography>
-                  <Button size="small" onClick={logout} sx={{ color: "#94a3b8" }}>
-                    Logg ut
-                  </Button>
-                </Stack>
-              )}
+                )}
 
-              <Stack component="form" spacing={1.3} onSubmit={handlePostSubmit}>
-                <TextField
-                  label="Tittel"
-                  value={postForm.title}
-                  onChange={(event) =>
-                    setPostForm((current) => ({ ...current, title: event.target.value }))
-                  }
-                  fullWidth
-                  sx={inputSx}
-                />
-                <TextField
-                  label="Hva skjer?"
-                  value={postForm.body}
-                  onChange={(event) =>
-                    setPostForm((current) => ({ ...current, body: event.target.value }))
-                  }
-                  multiline
-                  minRows={2}
-                  fullWidth
-                  sx={inputSx}
-                />
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.3}>
+                <Divider sx={{ borderColor: "rgba(255,255,255,.08)" }} />
+
+                <Stack component="form" spacing={1.15} onSubmit={handlePostSubmit}>
+                  <TextField
+                    label="Tittel"
+                    value={postForm.title}
+                    onChange={(event) =>
+                      setPostForm((current) => ({ ...current, title: event.target.value }))
+                    }
+                    fullWidth
+                    sx={inputSx}
+                  />
+                  <TextField
+                    label="Hva skjer?"
+                    value={postForm.body}
+                    onChange={(event) =>
+                      setPostForm((current) => ({ ...current, body: event.target.value }))
+                    }
+                    multiline
+                    minRows={2}
+                    fullWidth
+                    sx={inputSx}
+                  />
                   <TextField
                     select
                     label="Kategori"
@@ -638,6 +727,7 @@ function VaervaktFeatures({ selectedLocation, weather }) {
                       }))
                     }
                     fullWidth
+                    SelectProps={{ MenuProps: selectMenuProps }}
                     sx={inputSx}
                   >
                     {CATEGORIES.map((category) => (
@@ -651,75 +741,83 @@ function VaervaktFeatures({ selectedLocation, weather }) {
                     variant="contained"
                     disabled={!profile}
                     sx={{
-                      minWidth: { sm: "160px" },
-                      borderRadius: "16px",
-                      textTransform: "none",
+                      borderRadius: "14px",
+                      py: 1.05,
+                      color: "#06111f",
                       fontWeight: 900,
+                      background: "linear-gradient(135deg, #7dd3fc, #38bdf8)",
+                      textTransform: "none",
+                      "&:hover": {
+                        background: "linear-gradient(135deg, #bae6fd, #38bdf8)",
+                      },
                     }}
                   >
-                    Post
+                    Post i Værhub
                   </Button>
                 </Stack>
               </Stack>
+            </Grid>
 
-              <Divider sx={{ borderColor: "rgba(148,163,184,.16)", my: 2 }} />
-
-              <Stack spacing={1.2}>
+            <Grid item xs={12} md={7}>
+              <Stack spacing={0.9}>
                 {posts.length === 0 && (
                   <EmptyState>Ingen innlegg i nærheten enda. Start praten.</EmptyState>
                 )}
                 {posts.map((post) => (
-                  <Box
-                    key={post.id}
-                    sx={{
-                      border: "1px solid rgba(148, 163, 184, 0.14)",
-                      borderRadius: "18px",
-                      p: 1.5,
-                      backgroundColor: "rgba(2, 6, 23, 0.28)",
-                    }}
-                  >
-                    <Stack direction="row" justifyContent="space-between" gap={2}>
-                      <Box>
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                  <Box key={post.id} sx={{ ...cardSx, p: 1.3 }}>
+                    <Stack direction="row" justifyContent="space-between" gap={1.5}>
+                      <Box minWidth={0}>
+                        <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mb: 0.65 }}>
                           <Chip
                             label={CATEGORIES.find((item) => item.value === post.category)?.label || "Info"}
                             size="small"
                             sx={{
-                              height: "22px",
+                              height: "21px",
+                              borderRadius: "999px",
                               color: "#7dd3fc",
-                              backgroundColor: "rgba(14,165,233,.12)",
-                              fontSize: "0.72rem",
+                              backgroundColor: "rgba(56,189,248,.1)",
+                              fontSize: "0.68rem",
+                              fontWeight: 700,
                             }}
                           />
-                          <Typography sx={{ color: "#94a3b8", fontSize: "0.78rem" }}>
+                          <Typography sx={{ color: "rgba(255,255,255,.42)", fontSize: "0.72rem" }}>
                             {post.time}
                           </Typography>
                         </Stack>
-                        <Typography sx={{ color: "#f8fafc", fontWeight: 900 }}>
+                        <Typography sx={{ color: "white", fontWeight: 800, fontSize: "0.94rem", lineHeight: 1.25 }}>
                           {post.title}
                         </Typography>
-                        <Typography sx={{ color: "#cbd5e1", fontSize: "0.9rem", mt: 0.4 }}>
+                        <Typography sx={{ color: "rgba(255,255,255,.66)", fontSize: "0.82rem", mt: 0.45, lineHeight: 1.45 }}>
                           {post.body}
                         </Typography>
-                        <Typography sx={{ color: "#94a3b8", fontSize: "0.78rem", mt: 0.8 }}>
+                        <Typography noWrap sx={{ color: "rgba(255,255,255,.42)", fontSize: "0.72rem", mt: 0.8 }}>
                           {post.displayName} · {post.location}
                         </Typography>
                       </Box>
-                      <Stack alignItems="center" spacing={0.3}>
+                      <Stack
+                        alignItems="center"
+                        justifyContent="center"
+                        sx={{
+                          flex: "0 0 38px",
+                          borderRadius: "14px",
+                          backgroundColor: "rgba(255,255,255,.045)",
+                          border: "1px solid rgba(255,255,255,.07)",
+                        }}
+                      >
                         <Button
                           size="small"
                           onClick={() => handleVote(post.id, 1)}
-                          sx={{ minWidth: 34, color: "#38bdf8" }}
+                          sx={{ minWidth: 28, color: "#7dd3fc", py: 0, lineHeight: 1 }}
                         >
                           ▲
                         </Button>
-                        <Typography sx={{ color: "#f8fafc", fontWeight: 900 }}>
+                        <Typography sx={{ color: "white", fontWeight: 900, fontSize: "0.86rem" }}>
                           {post.score}
                         </Typography>
                         <Button
                           size="small"
                           onClick={() => handleVote(post.id, -1)}
-                          sx={{ minWidth: 34, color: "#94a3b8" }}
+                          sx={{ minWidth: 28, color: "rgba(255,255,255,.48)", py: 0, lineHeight: 1 }}
                         >
                           ▼
                         </Button>
@@ -728,10 +826,10 @@ function VaervaktFeatures({ selectedLocation, weather }) {
                   </Box>
                 ))}
               </Stack>
-            </Box>
-          </Stack>
-        </Grid>
-      </Grid>
+            </Grid>
+          </Grid>
+        </Box>
+      </Stack>
     </Grid>
   );
 }
