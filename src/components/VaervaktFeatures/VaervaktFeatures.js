@@ -189,6 +189,10 @@ const GLIMPSE_TTLS = [
 
 const sectionSx = {
   width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  overflow: "hidden",
   borderRadius: { xs: "18px", sm: "22px" },
   background:
     "linear-gradient(0deg, rgba(255, 255, 255, .045) 0%, rgba(171, 203, 222, .07) 100%)",
@@ -199,6 +203,9 @@ const sectionSx = {
 };
 
 const cardSx = {
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
   borderRadius: { xs: "14px", sm: "18px" },
   background:
     "linear-gradient(180deg, rgba(9, 16, 36, .72) 0%, rgba(7, 12, 27, .86) 100%)",
@@ -466,21 +473,26 @@ function SnapTypeButton({ type, selected, onClick }) {
       type="button"
       onClick={onClick}
       sx={{
-        minWidth: 0,
-        width: { xs: 68, sm: 76 },
-        height: 82,
-        borderRadius: "20px",
-        flexDirection: "column",
-        gap: 0.45,
+        flex: "0 0 auto",
+        minWidth: "max-content",
+        height: { xs: 42, sm: 44 },
+        borderRadius: "999px",
+        px: { xs: 1.05, sm: 1.18 },
+        py: 0,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 0.65,
         color: selected ? "#06111f" : "rgba(255,255,255,.82)",
         background: selected
           ? "linear-gradient(160deg, #bae6fd, #38bdf8)"
-          : "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.035))",
+          : "linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.035))",
         border: selected
           ? "1px solid rgba(186,230,253,.72)"
-          : "1px solid rgba(255,255,255,.09)",
+          : "1px solid rgba(255,255,255,.11)",
         textTransform: "none",
-        boxShadow: selected ? "0 12px 26px rgba(56,189,248,.2)" : "none",
+        boxShadow: selected ? "0 12px 26px rgba(56,189,248,.18)" : "none",
+        scrollSnapAlign: "start",
+        whiteSpace: "nowrap",
         "&:hover": {
           background: selected
             ? "linear-gradient(160deg, #e0f2fe, #38bdf8)"
@@ -488,8 +500,8 @@ function SnapTypeButton({ type, selected, onClick }) {
         },
       }}
     >
-      <Typography sx={{ fontSize: "1.55rem", lineHeight: 1 }}>{type.icon}</Typography>
-      <Typography sx={{ fontSize: "0.72rem", fontWeight: 800, lineHeight: 1.1 }}>
+      <Typography sx={{ fontSize: "1.22rem", lineHeight: 1 }}>{type.icon}</Typography>
+      <Typography sx={{ fontSize: "0.74rem", fontWeight: 850, lineHeight: 1 }}>
         {type.label}
       </Typography>
     </Button>
@@ -779,7 +791,13 @@ function VaervaktFeatures({ selectedLocation, weather }) {
             }
           />
 
-          <Grid container spacing={1.4} alignItems="stretch">
+          <Grid
+            container
+            rowSpacing={1.4}
+            columnSpacing={{ xs: 0, md: 1.4 }}
+            alignItems="stretch"
+            sx={{ width: "100%", minWidth: 0, margin: 0 }}
+          >
             <Grid item xs={12} md={5}>
               <Stack component="form" spacing={1.2} onSubmit={handleReportSubmit} sx={{ ...cardSx, p: 1.5, height: "100%" }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
@@ -984,7 +1002,12 @@ function VaervaktFeatures({ selectedLocation, weather }) {
             }
           />
 
-          <Grid container spacing={1.4}>
+          <Grid
+            container
+            rowSpacing={1.4}
+            columnSpacing={{ xs: 0, md: 1.4 }}
+            sx={{ width: "100%", minWidth: 0, margin: 0 }}
+          >
             <Grid item xs={12} md={5}>
               <Stack spacing={1.2} sx={{ ...cardSx, p: 1.5 }}>
                 {!profile ? (
@@ -1048,27 +1071,52 @@ function VaervaktFeatures({ selectedLocation, weather }) {
                       </WeatherPillButton>
                     </Stack>
 
-                    <Stack
-                      direction="row"
-                      spacing={1}
+                    <Box
                       sx={{
-                        overflowX: "auto",
-                        pb: 0.4,
-                        scrollbarWidth: "none",
-                        "&::-webkit-scrollbar": { display: "none" },
+                        position: "relative",
+                        minWidth: 0,
+                        mx: { xs: -0.25, sm: -0.35 },
+                        "&::after": {
+                          content: '""',
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          bottom: 6,
+                          width: 34,
+                          pointerEvents: "none",
+                          borderRadius: "0 18px 18px 0",
+                          background:
+                            "linear-gradient(90deg, rgba(7,12,27,0), rgba(7,12,27,.86))",
+                        },
                       }}
                     >
-                      {SNAP_TYPES.map((type) => (
-                        <SnapTypeButton
-                          key={type.value}
-                          type={type}
-                          selected={snapForm.type === type.value}
-                          onClick={() =>
-                            setSnapForm((current) => ({ ...current, type: type.value }))
-                          }
-                        />
-                      ))}
-                    </Stack>
+                      <Stack
+                        direction="row"
+                        spacing={0.75}
+                        sx={{
+                          maxWidth: "100%",
+                          overflowX: "auto",
+                          overflowY: "hidden",
+                          px: { xs: 0.25, sm: 0.35 },
+                          pb: 0.8,
+                          scrollbarWidth: "none",
+                          scrollSnapType: "x proximity",
+                          WebkitOverflowScrolling: "touch",
+                          "&::-webkit-scrollbar": { display: "none" },
+                        }}
+                      >
+                        {SNAP_TYPES.map((type) => (
+                          <SnapTypeButton
+                            key={type.value}
+                            type={type}
+                            selected={snapForm.type === type.value}
+                            onClick={() =>
+                              setSnapForm((current) => ({ ...current, type: type.value }))
+                            }
+                          />
+                        ))}
+                      </Stack>
+                    </Box>
 
                     <Stack spacing={1}>
                       <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>

@@ -210,12 +210,17 @@ function App() {
 
   return (
     <Container
+      disableGutters
       sx={{
-        maxWidth: { xs: "95%", sm: "80%", md: "1100px" },
+        maxWidth: { xs: "100%", sm: "92%", md: "1100px" },
         width: "100%",
-        height: "100%",
+        minHeight: "100%",
         margin: "0 auto",
-        padding: "1rem 0 3rem",
+        boxSizing: "border-box",
+        overflowX: "clip",
+        px: { xs: "12px", sm: 0 },
+        paddingTop: "1rem",
+        paddingBottom: "3rem",
         marginBottom: "1rem",
         borderRadius: {
           xs: "none",
@@ -227,7 +232,16 @@ function App() {
         },
       }}
     >
-      <Grid container columnSpacing={2}>
+      <Grid
+        container
+        columnSpacing={{ xs: 0, sm: 2 }}
+        sx={{
+          width: "100%",
+          minWidth: 0,
+          marginLeft: 0,
+          marginRight: 0,
+        }}
+      >
         <Grid item xs={12}>
           <Box
             display="flex"
