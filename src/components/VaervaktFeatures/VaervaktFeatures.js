@@ -4,9 +4,11 @@ import {
   Box,
   Button,
   Chip,
+  FormControlLabel,
   Grid,
   MenuItem,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -16,6 +18,7 @@ import {
   fetchHubPosts,
   fetchReports,
   loginHubProfile,
+  submitBathTemperature,
   submitReport,
   uploadGlimpsePhoto,
   voteHubPost,
@@ -522,6 +525,12 @@ function VaervaktFeatures({ selectedLocation, weather }) {
     temperature: "",
     condition: "Sol / Klart",
   });
+  const [bathForm, setBathForm] = useState({
+    name: "",
+    temperature: "",
+    heatedWater: false,
+  });
+  const [isBathSubmitting, setIsBathSubmitting] = useState(false);
   const [snapForm, setSnapForm] = useState({
     type: "rain",
     note: "",
@@ -541,6 +550,16 @@ function VaervaktFeatures({ selectedLocation, weather }) {
 
   const selectedSnapType =
     SNAP_TYPES.find((type) => type.value === snapForm.type) || SNAP_TYPES[0];
+
+  const locationCoordinates = useMemo(() => {
+    const lat = Number(location.lat);
+    const lon = Number(location.lon);
+    return {
+      lat,
+      lon,
+      hasCoordinates: Number.isFinite(lat) && Number.isFinite(lon),
+    };
+  }, [location.lat, location.lon]);
 
   useEffect(() => {
     return () => {
@@ -614,6 +633,50 @@ function VaervaktFeatures({ selectedLocation, weather }) {
       await refreshCommunityData();
     } catch (error) {
       setNotice({ severity: "error", text: error.message });
+    }
+  };
+
+  const handleBathSubmit = async (event) => {
+    event.preventDefault();
+    const temperature = normalizeTemp(bathForm.temperature);
+    const name = bathForm.name.trim();
+
+    if (!name || temperature === null) {
+      setNotice({
+        severity: "info",
+        text: "Skriv badeplass og badetemperatur før du sender.",
+      });
+      return;
+    }
+
+    if (!locationCoordinates.hasCoordinates) {
+      setNotice({
+        severity: "info",
+        text: "Velg posisjon eller søk opp badeplassen først, så Yr får riktige koordinater.",
+      });
+      return;
+    }
+
+    try {
+      setIsBathSubmitting(true);
+      window.navigator.vibrate?.(10);
+      const result = await submitBathTemperature({
+        name,
+        temperature,
+        lat: locationCoordinates.lat,
+        lon: locationCoordinates.lon,
+        heatedWater: bathForm.heatedWater,
+        reporter: reportForm.username.trim() || profile?.user?.displayName || "",
+      });
+      setBathForm({ name: "", temperature: "", heatedWater: false });
+      setNotice({
+        severity: "success",
+        text: result.message || "Badetemperaturen er sendt til Yr.",
+      });
+    } catch (error) {
+      setNotice({ severity: "error", text: error.message });
+    } finally {
+      setIsBathSubmitting(false);
     }
   };
 
@@ -937,6 +1000,118 @@ function VaervaktFeatures({ selectedLocation, weather }) {
               </Stack>
             </Grid>
           </Grid>
+        </Box>
+
+        <Box sx={sectionSx}>
+          <SectionHeading
+            title="Badetemperatur"
+            subtitle="Send ferske målinger videre til Yr fra riktig badeplass."
+          />
+          <Stack
+            component="form"
+            spacing={1.25}
+            onSubmit={handleBathSubmit}
+            sx={{
+              ...cardSx,
+              p: { xs: 1.4, sm: 1.6 },
+              background:
+                "linear-gradient(135deg, rgba(14,165,233,.15), rgba(6,182,212,.08) 52%, rgba(9,16,36,.84))",
+            }}
+          >
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <TextField
+                label="Badeplass"
+                placeholder="For eksempel Bystranda"
+                value={bathForm.name}
+                onChange={(event) =>
+                  setBathForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                fullWidth
+                sx={inputSx}
+              />
+              <TextField
+                label="Badetemp °C"
+                placeholder="19,5"
+                value={bathForm.temperature}
+                onChange={(event) =>
+                  setBathForm((current) => ({
+                    ...current,
+                    temperature: event.target.value,
+                  }))
+                }
+                inputProps={{ inputMode: "decimal" }}
+                fullWidth
+                sx={inputSx}
+              />
+            </Stack>
+
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              alignItems={{ xs: "stretch", sm: "center" }}
+              justifyContent="space-between"
+            >
+              <Box>
+                <Typography sx={{ color: "rgba(255,255,255,.68)", fontSize: "0.78rem" }}>
+                  Bruk søk eller posisjon på badeplassen først. Yr matcher på navn og koordinater.
+                </Typography>
+                <Typography sx={{ color: "rgba(255,255,255,.42)", fontSize: "0.72rem", mt: 0.3 }}>
+                  Sender fra {location.name}
+                  {locationCoordinates.hasCoordinates
+                    ? ` (${locationCoordinates.lat.toFixed(4)}, ${locationCoordinates.lon.toFixed(4)})`
+                    : " uten koordinater"}
+                  .
+                </Typography>
+              </Box>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={bathForm.heatedWater}
+                    onChange={(event) =>
+                      setBathForm((current) => ({
+                        ...current,
+                        heatedWater: event.target.checked,
+                      }))
+                    }
+                    size="small"
+                  />
+                }
+                label="Oppvarmet"
+                sx={{
+                  color: "rgba(255,255,255,.68)",
+                  m: 0,
+                  "& .MuiFormControlLabel-label": { fontSize: "0.78rem", fontWeight: 700 },
+                  "& .MuiSwitch-switchBase.Mui-checked": { color: "#38bdf8" },
+                  "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+                    backgroundColor: "#38bdf8",
+                  },
+                }}
+              />
+            </Stack>
+
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isBathSubmitting}
+              sx={{
+                borderRadius: "14px",
+                py: 1.05,
+                color: "#06111f",
+                fontWeight: 900,
+                background: "linear-gradient(135deg, #67e8f9, #38bdf8)",
+                boxShadow: "0 10px 24px rgba(56, 189, 248, .18)",
+                textTransform: "none",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #a5f3fc, #38bdf8)",
+                },
+              }}
+            >
+              {isBathSubmitting ? "Sender til Yr..." : "Send badetemperatur til Yr"}
+            </Button>
+          </Stack>
         </Box>
 
         <Box

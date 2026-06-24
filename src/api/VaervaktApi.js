@@ -60,6 +60,13 @@ export function submitReport(report) {
   });
 }
 
+export function submitBathTemperature(report) {
+  return requestJson("/api/bath-reports.php", {
+    method: "POST",
+    body: JSON.stringify(report),
+  });
+}
+
 export function fetchHubPosts({ lat, lon, name }, sort = "new", limit = 8) {
   const url = buildUrl("/api/hub.php", {
     limit,
