@@ -25,6 +25,8 @@ const APP_TABS = [
   { value: "glimpse", label: "Glimt", icon: "⚡", path: "/glimt/" },
 ];
 
+const VIPPS_URL = "https://betal.vipps.no/opy01u";
+
 function isBathSeason(date = new Date()) {
   const month = date.getMonth();
   return month >= 4 && month <= 8;
@@ -390,6 +392,30 @@ function App() {
             />
 
             <Box display="flex" alignItems="center" justifyContent="flex-end" gap="0.7rem">
+              <Button
+                component="a"
+                href={VIPPS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                size="small"
+                sx={{
+                  color: "#fff",
+                  border: "1px solid rgba(255, 115, 115, .38)",
+                  borderRadius: "999px",
+                  px: { xs: 1, sm: 1.5 },
+                  fontSize: { xs: "0.68rem", sm: "0.78rem" },
+                  fontWeight: 900,
+                  textTransform: "none",
+                  whiteSpace: "nowrap",
+                  background: "linear-gradient(135deg, #ff7a3d, #ff2d55)",
+                  boxShadow: "0 10px 24px rgba(255,45,85,.16)",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #ff8f5c, #ff4770)",
+                  },
+                }}
+              >
+                Støtt
+              </Button>
               <Button
                 onClick={usePositionHandler}
                 disabled={isLocating}
