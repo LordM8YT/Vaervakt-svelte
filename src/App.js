@@ -25,6 +25,11 @@ const APP_TABS = [
   { value: "glimpse", label: "Glimt", icon: "⚡", path: "/glimt/" },
 ];
 
+function isBathSeason(date = new Date()) {
+  const month = date.getMonth();
+  return month >= 4 && month <= 8;
+}
+
 function getTabFromPath(pathname = window.location.pathname) {
   const normalizedPath = pathname.endsWith("/") ? pathname : `${pathname}/`;
   return APP_TABS.find((tab) => tab.path === normalizedPath)?.value || "weather";
@@ -88,6 +93,13 @@ function requestBestPosition({
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => getTabFromPath());
+  const bathSeasonActive = isBathSeason();
+  const visibleTabs = APP_TABS.filter(
+    (tab) => tab.value !== "bath" || bathSeasonActive || activeTab === "bath"
+  );
+  const communityHint = bathSeasonActive
+    ? "lokale rapporter, badetemperatur og Værglimt"
+    : "lokale rapporter og Værglimt";
   const [todayWeather, setTodayWeather] = useState(null);
   const [todayForecast, setTodayForecast] = useState([]);
   const [weekForecast, setWeekForecast] = useState(null);
@@ -278,7 +290,7 @@ function App() {
                 fontSize: "0.82rem",
               }}
             >
-              Bytt fane nederst for lokale rapporter, badetemperatur og Værglimt.
+              Bytt fane nederst for {communityHint}.
             </Box>
           </Grid>
         )}
@@ -440,7 +452,7 @@ function App() {
           zIndex: 30,
           width: "min(520px, calc(100vw - 24px))",
           display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+          gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))`,
           gap: "6px",
           p: "7px",
           borderRadius: "999px",
@@ -450,7 +462,7 @@ function App() {
           boxShadow: "0 18px 44px rgba(2, 6, 23, .45)",
         }}
       >
-        {APP_TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = activeTab === tab.value;
 
           return (
