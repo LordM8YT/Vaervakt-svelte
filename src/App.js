@@ -38,9 +38,7 @@ function getTabFromPath(pathname = window.location.pathname) {
 }
 
 function requestBestPosition({
-  targetAccuracy = 35,
-  settleMs = 6500,
-  timeout = 12000,
+  timeout = 10000,
 } = {}) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -48,42 +46,32 @@ function requestBestPosition({
       return;
     }
 
-    let bestPosition = null;
-    let settled = false;
-    let watchId = 0;
-
-    const finish = (callback, value) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeoutId);
-      window.clearTimeout(settleId);
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-      callback(value);
-    };
-
-    const timeoutId = window.setTimeout(() => {
-      if (bestPosition) finish(resolve, bestPosition);
-      else finish(reject, new Error("timeout"));
-    }, timeout);
-
-    const settleId = window.setTimeout(() => {
-      if (bestPosition) finish(resolve, bestPosition);
-    }, settleMs);
-
-    watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        if (!bestPosition || position.coords.accuracy < bestPosition.coords.accuracy) {
-          bestPosition = position;
-        }
-        if (position.coords.accuracy <= targetAccuracy) finish(resolve, position);
-      },
-      (error) => {
-        if (bestPosition) finish(resolve, bestPosition);
-        else finish(reject, error);
-      },
-      { enableHighAccuracy: true, timeout, maximumAge: 0 }
+    navigator.geolocation.getCurrentPosition(
+      resolve,
+      reject,
+      { enableHighAccuracy: true, timeout, maximumAge: 60000 }
     );
   });
+}
+
+function getPositionStatusMessage(error) {
+  if (error?.message === "unsupported") {
+    return "Nettleseren støtter ikke posisjon.";
+  }
+
+  if (error?.code === 1) {
+    return "Posisjon er avslått. Søk etter sted i stedet.";
+  }
+
+  if (error?.code === 2) {
+    return "Fant ikke posisjonen akkurat nå. Prøv igjen eller søk etter sted.";
+  }
+
+  if (error?.code === 3 || error?.message === "timeout") {
+    return "Posisjon brukte for lang tid. Prøv igjen eller søk etter sted.";
+  }
+
+  return "Kunne ikke hente posisjon. Søk etter sted i stedet.";
 }
 
 function App() {
@@ -174,9 +162,7 @@ function App() {
     setLocationStatus("");
     try {
       const position = await requestBestPosition({
-        targetAccuracy: 25,
-        settleMs: 7500,
-        timeout: 14000,
+        timeout: 10000,
       });
       const latitude = position.coords.latitude.toFixed(7);
       const longitude = position.coords.longitude.toFixed(7);
@@ -193,7 +179,7 @@ function App() {
       );
       setLocationStatus("");
     } catch (error) {
-      setLocationStatus("Fikk ikke tilgang til posisjon. Søk etter sted i stedet.");
+      setLocationStatus(getPositionStatusMessage(error));
     } finally {
       setIsLocating(false);
     }
