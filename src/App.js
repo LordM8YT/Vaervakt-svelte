@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Box, Button, Container, Grid, Link, SvgIcon, Typography } from "@mui/material";
 import Search from "./components/Search/Search";
 import WeeklyForecast from "./components/WeeklyForecast/WeeklyForecast";
@@ -26,6 +26,8 @@ const APP_TABS = [
 ];
 
 const VIPPS_URL = "https://betal.vipps.no/opy01u";
+const PULL_TRIGGER_DISTANCE = 74;
+const PULL_MAX_DISTANCE = 96;
 
 function isBathSeason(date = new Date()) {
   const month = date.getMonth();
@@ -74,6 +76,141 @@ function getPositionStatusMessage(error) {
   return "Kunne ikke hente posisjon. Søk etter sted i stedet.";
 }
 
+function PullToRefreshShell({ children, disabled = false, onRefresh }) {
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const startYRef = useRef(0);
+  const distanceRef = useRef(0);
+  const isTrackingRef = useRef(false);
+  const onRefreshRef = useRef(onRefresh);
+
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
+
+  useEffect(() => {
+    const setDistance = (value) => {
+      distanceRef.current = value;
+      setPullDistance(value);
+    };
+
+    const handleTouchStart = (event) => {
+      if (disabled || isRefreshing || window.scrollY > 2 || event.touches.length !== 1) {
+        return;
+      }
+
+      startYRef.current = event.touches[0].clientY;
+      isTrackingRef.current = true;
+    };
+
+    const handleTouchMove = (event) => {
+      if (!isTrackingRef.current || event.touches.length !== 1) return;
+
+      const dragDistance = event.touches[0].clientY - startYRef.current;
+      if (dragDistance <= 0 || window.scrollY > 2) {
+        setDistance(0);
+        return;
+      }
+
+      const resistedDistance = Math.min(PULL_MAX_DISTANCE, dragDistance * 0.56);
+      setDistance(resistedDistance);
+
+      if (event.cancelable && resistedDistance > 8) {
+        event.preventDefault();
+      }
+    };
+
+    const handleTouchEnd = async () => {
+      if (!isTrackingRef.current) return;
+      isTrackingRef.current = false;
+
+      if (distanceRef.current < PULL_TRIGGER_DISTANCE) {
+        setDistance(0);
+        return;
+      }
+
+      setDistance(PULL_TRIGGER_DISTANCE);
+      setIsRefreshing(true);
+      try {
+        window.navigator.vibrate?.(8);
+        await onRefreshRef.current?.();
+      } finally {
+        setIsRefreshing(false);
+        setDistance(0);
+      }
+    };
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("touchcancel", handleTouchEnd);
+    };
+  }, [disabled, isRefreshing]);
+
+  const progress = Math.min(1, pullDistance / PULL_TRIGGER_DISTANCE);
+
+  return (
+    <>
+      <Box
+        aria-hidden="true"
+        sx={{
+          position: "fixed",
+          top: "calc(12px + env(safe-area-inset-top))",
+          left: "50%",
+          zIndex: 60,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          px: 1.4,
+          py: 0.85,
+          borderRadius: "999px",
+          border: "1px solid rgba(125, 211, 252, .24)",
+          background: "rgba(2, 6, 23, .88)",
+          color: "rgba(226, 232, 240, .9)",
+          boxShadow: "0 18px 36px rgba(2, 6, 23, .42)",
+          backdropFilter: "blur(18px)",
+          opacity: isRefreshing || pullDistance > 6 ? 1 : 0,
+          pointerEvents: "none",
+          transform: `translate(-50%, ${isRefreshing ? 0 : Math.max(-18, pullDistance - 56)}px)`,
+          transition: isRefreshing ? "opacity .18s ease, transform .18s ease" : "none",
+        }}
+      >
+        <Box
+          sx={{
+            width: 18,
+            height: 18,
+            borderRadius: "999px",
+            border: "2px solid rgba(125, 211, 252, .28)",
+            borderTopColor: "#7dd3fc",
+            transform: `rotate(${progress * 260}deg)`,
+            animation: isRefreshing ? "vvPullSpin .8s linear infinite" : "none",
+          }}
+        />
+        <Typography sx={{ fontSize: "0.78rem", fontWeight: 800 }}>
+          {isRefreshing ? "Oppdaterer..." : progress >= 1 ? "Slipp for å oppdatere" : "Dra for å oppdatere"}
+        </Typography>
+      </Box>
+
+      <Grid item xs={12} component="main" sx={{ width: "100%", minWidth: 0 }}>
+        <Grid
+          container
+          columnSpacing={{ xs: 0, sm: 2 }}
+          rowSpacing={{ xs: 1.4, sm: 1.8 }}
+          sx={{ width: "100%", minWidth: 0, margin: 0 }}
+        >
+          {children}
+        </Grid>
+      </Grid>
+    </>
+  );
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState(() => getTabFromPath());
   const bathSeasonActive = isBathSeason();
@@ -90,6 +227,7 @@ function App() {
   const [isLocating, setIsLocating] = useState(false);
   const [error, setError] = useState(false);
   const [locationStatus, setLocationStatus] = useState("");
+  const [communityRefreshKey, setCommunityRefreshKey] = useState(0);
   const [selectedLocation, setSelectedLocation] = useState({
     name: "Kristiansand, NO",
     lat: 58.1467,
@@ -185,6 +323,22 @@ function App() {
     }
   };
 
+  const refreshActiveTab = async () => {
+    if (isLoading) return;
+
+    if (selectedLocation?.lat && selectedLocation?.lon) {
+      await searchChangeHandler(
+        {
+          value: `${selectedLocation.lat} ${selectedLocation.lon}`,
+          label: selectedLocation.name,
+        },
+        true
+      );
+    }
+
+    setCommunityRefreshKey((value) => value + 1);
+  };
+
   useEffect(() => {
     trackVisit();
     searchChangeHandler(
@@ -203,39 +357,40 @@ function App() {
   }, []);
 
   let appContent = (
-    <Box
-      xs={12}
-      display="flex"
-      flexDirection="column"
-      alignItems="center"
-      justifyContent="center"
-      sx={{
-        width: "100%",
-        minHeight: "500px",
-      }}
-    >
-      <SvgIcon
-        component={SplashIcon}
-        inheritViewBox
-        sx={{ fontSize: { xs: "100px", sm: "120px", md: "140px" } }}
-      />
-      <Typography
-        variant="h4"
-        component="h4"
+    <Grid item xs={12}>
+      <Box
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
         sx={{
-          fontSize: { xs: "12px", sm: "14px" },
-          color: "rgba(255,255,255, .85)",
-          fontFamily: "Poppins",
-          textAlign: "center",
-          margin: "2rem 0",
-          maxWidth: "80%",
-          lineHeight: "22px",
+          width: "100%",
+          minHeight: "500px",
         }}
       >
-        Søk etter et sted, eller bruk standardvisningen for Kristiansand. Data
-        hentes fra Meteorologisk institutt.
-      </Typography>
-    </Box>
+        <SvgIcon
+          component={SplashIcon}
+          inheritViewBox
+          sx={{ fontSize: { xs: "100px", sm: "120px", md: "140px" } }}
+        />
+        <Typography
+          variant="h4"
+          component="h4"
+          sx={{
+            fontSize: { xs: "12px", sm: "14px" },
+            color: "rgba(255,255,255, .85)",
+            fontFamily: "Poppins",
+            textAlign: "center",
+            margin: "2rem 0",
+            maxWidth: "80%",
+            lineHeight: "22px",
+          }}
+        >
+          Søk etter et sted, eller bruk standardvisningen for Kristiansand. Data
+          hentes fra Meteorologisk institutt.
+        </Typography>
+      </Box>
+    </Grid>
   );
 
   if (todayWeather && todayForecast && weekForecast) {
@@ -258,6 +413,7 @@ function App() {
             selectedLocation={selectedLocation}
             weather={todayWeather}
             activeTab={activeTab}
+            refreshKey={communityRefreshKey}
           />
         )}
         {activeTab === "weather" && (
@@ -285,40 +441,44 @@ function App() {
 
   if (error) {
     appContent = (
-      <ErrorBox
-        margin="3rem auto"
-        flex="inherit"
-        errorMessage="Noe gikk galt. Prøv igjen."
-      />
+      <Grid item xs={12}>
+        <ErrorBox
+          margin="3rem auto"
+          flex="inherit"
+          errorMessage="Noe gikk galt. Prøv igjen."
+        />
+      </Grid>
     );
   }
 
   if (isLoading) {
     appContent = (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          width: "100%",
-          minHeight: "500px",
-        }}
-      >
-        <LoadingBox value="1">
-          <Typography
-            variant="h3"
-            component="h3"
-            sx={{
-              fontSize: { xs: "10px", sm: "12px" },
-              color: "rgba(255, 255, 255, .8)",
-              lineHeight: 1,
-              fontFamily: "Poppins",
-            }}
-          >
-            Laster værdata...
-          </Typography>
-        </LoadingBox>
-      </Box>
+      <Grid item xs={12}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            width: "100%",
+            minHeight: "500px",
+          }}
+        >
+          <LoadingBox value="1">
+            <Typography
+              variant="h3"
+              component="h3"
+              sx={{
+                fontSize: { xs: "10px", sm: "12px" },
+                color: "rgba(255, 255, 255, .8)",
+                lineHeight: 1,
+                fontFamily: "Poppins",
+              }}
+            >
+              Laster værdata...
+            </Typography>
+          </LoadingBox>
+        </Box>
+      </Grid>
     );
   }
 
@@ -468,7 +628,12 @@ function App() {
             </Box>
           )}
         </Grid>
-        {appContent}
+        <PullToRefreshShell
+          disabled={isLocating}
+          onRefresh={refreshActiveTab}
+        >
+          {appContent}
+        </PullToRefreshShell>
       </Grid>
       <Box
         component="nav"

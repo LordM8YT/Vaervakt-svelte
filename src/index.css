@@ -43,6 +43,12 @@ body {
   isolation: isolate;
 }
 
+@keyframes vvPullSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 button,
 input,
 select,

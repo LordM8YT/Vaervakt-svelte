@@ -10,6 +10,7 @@
 
 # production
 /build
+/Vaervakt.no/
 
 # misc
 .DS_Store

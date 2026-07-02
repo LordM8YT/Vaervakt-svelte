@@ -511,7 +511,7 @@ function SnapTypeButton({ type, selected, onClick }) {
   );
 }
 
-function VaervaktFeatures({ selectedLocation, weather, activeTab = "local" }) {
+function VaervaktFeatures({ selectedLocation, weather, activeTab = "local", refreshKey = 0 }) {
   const [reports, setReports] = useState([]);
   const [posts, setPosts] = useState([]);
   const [photos, setPhotos] = useState([]);
@@ -606,7 +606,7 @@ function VaervaktFeatures({ selectedLocation, weather, activeTab = "local" }) {
   useEffect(() => {
     refreshCommunityData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.name, location.lat, location.lon, sort]);
+  }, [location.name, location.lat, location.lon, sort, refreshKey]);
 
   const handleReportSubmit = async (event) => {
     event.preventDefault();
