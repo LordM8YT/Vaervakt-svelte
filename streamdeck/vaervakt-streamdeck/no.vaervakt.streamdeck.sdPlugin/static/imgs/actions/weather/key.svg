@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
   <rect width="144" height="144" rx="26" fill="#020617"/>
   <circle cx="108" cy="34" r="38" fill="#38bdf8" opacity=".24"/>
-  <text x="18" y="30" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="11" font-weight="800">VÆRVAKT</text>
-  <text x="18" y="82" fill="#fff" font-family="Arial, sans-serif" font-size="44" font-weight="900">--°</text>
-  <text x="18" y="112" fill="#94a3b8" font-family="Arial, sans-serif" font-size="12" font-weight="800">Laster...</text>
+  <text x="17" y="30" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="13" font-weight="900">VÆRVAKT</text>
+  <text x="16" y="84" fill="#fff" font-family="Arial, sans-serif" font-size="52" font-weight="900">--°</text>
+  <text x="17" y="114" fill="#94a3b8" font-family="Arial, sans-serif" font-size="14" font-weight="900">Laster...</text>
 </svg>
