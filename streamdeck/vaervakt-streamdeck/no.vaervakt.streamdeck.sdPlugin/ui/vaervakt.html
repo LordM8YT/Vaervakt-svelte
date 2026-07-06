@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Værvakt</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;
+      --panel: #111c33;
+      --line: rgba(148, 163, 184, .26);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 18px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+    }
+
+    h1 {
+      margin: 0 0 14px;
+      color: #f8fafc;
+      font-size: 16px;
+      letter-spacing: .02em;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.025));
+      padding: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 12px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid rgba(148, 163, 184, .24);
+      border-radius: 12px;
+      background: rgba(2, 6, 23, .38);
+      color: var(--text);
+      padding: 10px 11px;
+      font: inherit;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, .15);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 2px 0 14px;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .toggle input {
+      width: auto;
+      accent-color: var(--accent);
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #7dd3fc, #38bdf8);
+      color: #06111f;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 900;
+      padding: 10px 12px;
+    }
+
+    .hint {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <h1>Værvakt-knapp</h1>
+  <form class="card" id="settings-form">
+    <label>
+      Stedsnavn
+      <input id="placeName" name="placeName" placeholder="Kristiansand">
+    </label>
+
+    <div class="row">
+      <label>
+        Latitude
+        <input id="lat" name="lat" inputmode="decimal" placeholder="58.1467">
+      </label>
+      <label>
+        Longitude
+        <input id="lon" name="lon" inputmode="decimal" placeholder="7.9956">
+      </label>
+    </div>
+
+    <label>
+      Oppdater hvert X minutt
+      <input id="refreshMinutes" name="refreshMinutes" type="number" min="2" max="60" step="1" placeholder="10">
+    </label>
+
+    <label>
+      API-base
+      <input id="apiBase" name="apiBase" placeholder="https://www.værvakt.no">
+    </label>
+
+    <label class="toggle">
+      Åpne Værvakt når knappen trykkes
+      <input id="openOnPress" name="openOnPress" type="checkbox">
+    </label>
+
+    <button type="submit">Lagre</button>
+    <p class="hint">Tips: Søk opp stedet i Værvakt, og bruk koordinatene derfra hvis du vil ha helt spesifikk knapp.</p>
+  </form>
+
+  <script>
+    const defaults = {
+      apiBase: "https://www.xn--vrvakt-pua.no",
+      placeName: "Kristiansand",
+      lat: 58.1467,
+      lon: 7.9956,
+      refreshMinutes: 10,
+      openOnPress: true
+    };
+
+    let websocket = null;
+    let context = null;
+    let settings = { ...defaults };
+
+    const form = document.getElementById("settings-form");
+    const fields = {
+      apiBase: document.getElementById("apiBase"),
+      placeName: document.getElementById("placeName"),
+      lat: document.getElementById("lat"),
+      lon: document.getElementById("lon"),
+      refreshMinutes: document.getElementById("refreshMinutes"),
+      openOnPress: document.getElementById("openOnPress")
+    };
+
+    function render() {
+      fields.apiBase.value = settings.apiBase || defaults.apiBase;
+      fields.placeName.value = settings.placeName || defaults.placeName;
+      fields.lat.value = settings.lat ?? defaults.lat;
+      fields.lon.value = settings.lon ?? defaults.lon;
+      fields.refreshMinutes.value = settings.refreshMinutes || defaults.refreshMinutes;
+      fields.openOnPress.checked = settings.openOnPress !== false;
+    }
+
+    function readForm() {
+      return {
+        apiBase: fields.apiBase.value.trim() || defaults.apiBase,
+        placeName: fields.placeName.value.trim() || defaults.placeName,
+        lat: fields.lat.value.trim() || String(defaults.lat),
+        lon: fields.lon.value.trim() || String(defaults.lon),
+        refreshMinutes: fields.refreshMinutes.value || defaults.refreshMinutes,
+        openOnPress: fields.openOnPress.checked
+      };
+    }
+
+    function saveSettings() {
+      if (!websocket || !context) return;
+      settings = readForm();
+      websocket.send(JSON.stringify({
+        event: "setSettings",
+        context,
+        payload: settings
+      }));
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      saveSettings();
+    });
+
+    Object.values(fields).forEach((field) => {
+      field.addEventListener("change", saveSettings);
+    });
+
+    window.connectElgatoStreamDeckSocket = (port, uuid, registerEvent, info, actionInfo) => {
+      context = uuid;
+      const parsedActionInfo = JSON.parse(actionInfo || "{}");
+      settings = { ...defaults, ...(parsedActionInfo.payload?.settings || {}) };
+      render();
+
+      websocket = new WebSocket(`ws://127.0.0.1:${port}`);
+      websocket.onopen = () => {
+        websocket.send(JSON.stringify({ event: registerEvent, uuid }));
+      };
+      websocket.onmessage = (event) => {
+        const message = JSON.parse(event.data || "{}");
+        if (message.event === "didReceiveSettings") {
+          settings = { ...defaults, ...(message.payload?.settings || {}) };
+          render();
+        }
+      };
+    };
+
+    render();
+  </script>
+</body>
+</html>

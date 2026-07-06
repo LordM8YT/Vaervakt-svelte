@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "no.vaervakt.streamdeck",
+  "Name": "Værvakt",
+  "Version": "0.1.0.0",
+  "Author": "Værvakt.no",
+  "Description": "Viser lokalt vær og badetemperaturer fra Værvakt.no på Stream Deck.",
+  "Icon": "static/imgs/plugin/marketplace",
+  "Category": "Værvakt",
+  "CategoryIcon": "static/imgs/plugin/category-icon",
+  "CodePath": "bin/plugin.js",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "7.1"
+  },
+  "Nodejs": {
+    "Version": "24"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    },
+    {
+      "Platform": "mac",
+      "MinimumVersion": "13"
+    }
+  ],
+  "URL": "https://www.xn--vrvakt-pua.no",
+  "SupportURL": "https://www.xn--vrvakt-pua.no",
+  "Actions": [
+    {
+      "Name": "Værvakt Nå",
+      "UUID": "no.vaervakt.streamdeck.now",
+      "Icon": "static/imgs/actions/weather/icon",
+      "Tooltip": "Viser temperatur, værstatus og nærmeste badetemperatur.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "PropertyInspectorPath": "ui/vaervakt.html",
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "static/imgs/actions/weather/key",
+          "ShowTitle": false,
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Badetemp",
+      "UUID": "no.vaervakt.streamdeck.bath",
+      "Icon": "static/imgs/actions/bath/icon",
+      "Tooltip": "Viser nærmeste badetemperatur fra Yr via Værvakt.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "PropertyInspectorPath": "ui/vaervakt.html",
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "static/imgs/actions/bath/key",
+          "ShowTitle": false,
+          "TitleAlignment": "bottom"
+        }
+      ]
+    }
+  ]
+}
