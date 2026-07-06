@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import {
   createHubPost,
+  fetchBathTemperatures,
   fetchGlimpsePhotos,
   fetchHubPosts,
   fetchReports,
@@ -298,6 +299,46 @@ function getConditionIcon(condition = "") {
   return match?.icon || "🌦️";
 }
 
+function formatBathTemperature(value) {
+  const temperature = Number(value);
+  if (!Number.isFinite(temperature)) {
+    return "–";
+  }
+
+  return temperature.toFixed(temperature % 1 === 0 ? 0 : 1).replace(".", ",");
+}
+
+function formatBathDistance(value) {
+  const distance = Number(value);
+  if (!Number.isFinite(distance)) {
+    return "";
+  }
+
+  if (distance < 1) {
+    return `${Math.max(1, Math.round(distance * 1000))} m unna`;
+  }
+
+  return `${distance.toFixed(1).replace(".", ",")} km unna`;
+}
+
+function formatBathTime(value) {
+  if (!value) {
+    return "Nylig registrert";
+  }
+
+  const date = new Date(String(value).replace(" ", "T"));
+  if (Number.isNaN(date.getTime())) {
+    return "Nylig registrert";
+  }
+
+  return new Intl.DateTimeFormat("nb-NO", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function getSnapTypeForPost(post) {
   const text = `${post.title || ""} ${post.body || ""} ${post.category || ""} ${
     post.weatherCondition || ""
@@ -530,6 +571,8 @@ function VaervaktFeatures({ selectedLocation, weather, activeTab = "local", refr
     temperature: "",
     heatedWater: false,
   });
+  const [bathTemperatures, setBathTemperatures] = useState([]);
+  const [isBathLoading, setIsBathLoading] = useState(false);
   const [isBathSubmitting, setIsBathSubmitting] = useState(false);
   const [snapForm, setSnapForm] = useState({
     type: "rain",
@@ -571,10 +614,16 @@ function VaervaktFeatures({ selectedLocation, weather, activeTab = "local", refr
 
   const refreshCommunityData = async () => {
     setIsLoading(true);
-    const [reportResult, postResult, photoResult] = await Promise.allSettled([
+    const shouldFetchBath = activeTab === "bath" && locationCoordinates.hasCoordinates;
+    setIsBathLoading(shouldFetchBath);
+    const bathRequest = shouldFetchBath
+      ? fetchBathTemperatures(location)
+      : Promise.resolve({ bathing: { nearby: [] } });
+    const [reportResult, postResult, photoResult, bathResult] = await Promise.allSettled([
       fetchReports(location),
       fetchHubPosts(location, sort),
       fetchGlimpsePhotos(location),
+      bathRequest,
     ]);
 
     if (reportResult.status === "fulfilled") {
@@ -589,10 +638,17 @@ function VaervaktFeatures({ selectedLocation, weather, activeTab = "local", refr
       setPhotos(photoResult.value.photos || []);
     }
 
+    if (bathResult.status === "fulfilled") {
+      setBathTemperatures(bathResult.value?.bathing?.nearby || []);
+    } else {
+      setBathTemperatures([]);
+    }
+
     if (
       reportResult.status === "rejected" ||
       postResult.status === "rejected" ||
-      photoResult.status === "rejected"
+      photoResult.status === "rejected" ||
+      bathResult.status === "rejected"
     ) {
       setNotice({
         severity: "warning",
@@ -601,12 +657,13 @@ function VaervaktFeatures({ selectedLocation, weather, activeTab = "local", refr
     }
 
     setIsLoading(false);
+    setIsBathLoading(false);
   };
 
   useEffect(() => {
     refreshCommunityData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.name, location.lat, location.lon, sort, refreshKey]);
+  }, [location.name, location.lat, location.lon, sort, refreshKey, activeTab]);
 
   const handleReportSubmit = async (event) => {
     event.preventDefault();
@@ -673,6 +730,7 @@ function VaervaktFeatures({ selectedLocation, weather, activeTab = "local", refr
         severity: "success",
         text: result.message || "Badetemperaturen er sendt til Yr.",
       });
+      await refreshCommunityData();
     } catch (error) {
       setNotice({ severity: "error", text: error.message });
     } finally {
@@ -1009,8 +1067,102 @@ function VaervaktFeatures({ selectedLocation, weather, activeTab = "local", refr
             <Box sx={sectionSx}>
               <SectionHeading
                 title="Badetemperatur"
-                subtitle="Send ferske målinger videre til Yr fra riktig badeplass."
+                subtitle="Se ferske målinger i nærheten, eller send inn din egen."
               />
+              <Stack spacing={0.85} sx={{ mb: 1.25 }}>
+                {isBathLoading && (
+                  <EmptyState>Laster badetemperaturer i nærheten...</EmptyState>
+                )}
+                {!isBathLoading && bathTemperatures.length === 0 && (
+                  <EmptyState>
+                    Fant ingen ferske badetemperaturer innenfor 50 km. Yr viser bare målinger fra de siste fem døgnene.
+                  </EmptyState>
+                )}
+                {!isBathLoading &&
+                  bathTemperatures.map((bath) => (
+                    <Stack
+                      key={`${bath.locationId || bath.name}-${bath.time}`}
+                      direction="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      gap={1.15}
+                      sx={{
+                        ...cardSx,
+                        px: { xs: 1.15, sm: 1.45 },
+                        py: { xs: 1.05, sm: 1.15 },
+                        background:
+                          "linear-gradient(135deg, rgba(14,165,233,.18), rgba(9,16,36,.82) 58%, rgba(7,12,27,.9))",
+                      }}
+                    >
+                      <Stack direction="row" alignItems="center" gap={1} minWidth={0}>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            flex: "0 0 auto",
+                            borderRadius: "15px",
+                            display: "grid",
+                            placeItems: "center",
+                            background:
+                              "radial-gradient(circle at 35% 25%, rgba(186,230,253,.8), rgba(14,165,233,.22) 48%, rgba(14,165,233,.08))",
+                            fontSize: "1.22rem",
+                          }}
+                        >
+                          🌊
+                        </Box>
+                        <Box minWidth={0}>
+                          <Typography
+                            noWrap
+                            sx={{ color: "white", fontWeight: 850, fontSize: "0.9rem", lineHeight: 1.15 }}
+                          >
+                            {bath.name}
+                          </Typography>
+                          <Typography
+                            noWrap
+                            sx={{ color: "rgba(255,255,255,.48)", fontSize: "0.72rem", mt: 0.35 }}
+                          >
+                            {[
+                              bath.municipality,
+                              formatBathDistance(bath.distanceKm),
+                              formatBathTime(bath.time),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </Typography>
+                          {bath.heatedWater && (
+                            <Chip
+                              label="Oppvarmet"
+                              size="small"
+                              sx={{
+                                mt: 0.7,
+                                height: 20,
+                                borderRadius: "999px",
+                                color: "#bae6fd",
+                                backgroundColor: "rgba(14,165,233,.13)",
+                                border: "1px solid rgba(125,211,252,.18)",
+                                fontSize: "0.66rem",
+                                fontWeight: 800,
+                              }}
+                            />
+                          )}
+                        </Box>
+                      </Stack>
+                      <Box textAlign="right" flex="0 0 auto">
+                        <Typography sx={{ color: "white", fontWeight: 900, fontSize: "1.12rem", lineHeight: 1 }}>
+                          {formatBathTemperature(bath.temperature)}°
+                        </Typography>
+                        <Typography sx={{ color: "rgba(186,230,253,.62)", fontSize: "0.66rem", mt: 0.45, fontWeight: 800 }}>
+                          Yr
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  ))}
+                {bathTemperatures.length > 0 && (
+                  <Typography sx={{ color: "rgba(255,255,255,.38)", fontSize: "0.68rem", px: 0.35 }}>
+                    Badetemperaturer levert av Yr.
+                  </Typography>
+                )}
+              </Stack>
               <Stack
                 component="form"
                 spacing={1.25}

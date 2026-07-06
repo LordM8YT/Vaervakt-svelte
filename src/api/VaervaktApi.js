@@ -53,6 +53,15 @@ export function fetchReports({ lat, lon, name }, limit = 8) {
   return requestJson(url);
 }
 
+export function fetchBathTemperatures({ lat, lon }) {
+  const url = buildUrl("/api/weather.php", {
+    lat,
+    lon,
+  });
+
+  return requestJson(url);
+}
+
 export function submitReport(report) {
   return requestJson("/api/reports.php", {
     method: "POST",
