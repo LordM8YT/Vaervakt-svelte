@@ -10,9 +10,9 @@
   <circle cx="108" cy="42" r="42" fill="#38bdf8" opacity=".25"/>
   <path d="M0 0h25L0 25Z" fill="#38bdf8" opacity=".78"/>
   <path d="M144 144h-25l25-25Z" fill="#2563eb" opacity=".78"/>
-  <text x="13" y="32" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="12" font-weight="900">BADETEMP</text>
-  <text x="11" y="74" fill="#fff" font-family="Arial, sans-serif" font-size="60" font-weight="900">--</text>
-  <text x="13" y="101" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="14" font-weight="900">BADEPLASS</text>
-  <text x="13" y="121" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="10.5" font-weight="800">YR</text>
-  <text x="110" y="115" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="40">🌊</text>
+  <text x="16" y="31" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="10.5" font-weight="900">BADETEMP</text>
+  <text x="15" y="72" fill="#fff" font-family="Arial, sans-serif" font-size="56" font-weight="900">--</text>
+  <text x="16" y="97" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="12.5" font-weight="900">BADEPLASS</text>
+  <text x="16" y="117" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="9.5" font-weight="800">YR</text>
+  <text x="113" y="116" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="32">🌊</text>
 </svg>
