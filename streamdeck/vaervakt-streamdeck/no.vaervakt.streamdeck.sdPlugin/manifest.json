@@ -2,7 +2,7 @@
   "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
   "UUID": "no.vaervakt.streamdeck",
   "Name": "Værvakt",
-  "Version": "0.1.2.0",
+  "Version": "0.2.0.0",
   "Author": "Værvakt.no",
   "Description": "Viser lokalt vær og badetemperaturer fra Værvakt.no på Stream Deck.",
   "Icon": "static/imgs/plugin/marketplace",
@@ -78,6 +78,60 @@
       "States": [
         {
           "Image": "static/imgs/actions/bath-info/key",
+          "ShowTitle": false,
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Siste rapport",
+      "UUID": "no.vaervakt.streamdeck.latest-report",
+      "Icon": "static/imgs/actions/latest-report/icon",
+      "Tooltip": "Viser siste lokale værrapport i nærheten.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "PropertyInspectorPath": "ui/vaervakt.html",
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "static/imgs/actions/latest-report/key",
+          "ShowTitle": false,
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Send rapport",
+      "UUID": "no.vaervakt.streamdeck.quick-report",
+      "Icon": "static/imgs/actions/quick-report/icon",
+      "Tooltip": "Sender en hurtigrapport med valgt værtype og aktuell temperatur.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "PropertyInspectorPath": "ui/vaervakt.html",
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "static/imgs/actions/quick-report/key",
+          "ShowTitle": false,
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Åpne Værvakt",
+      "UUID": "no.vaervakt.streamdeck.open",
+      "Icon": "static/imgs/actions/open/icon",
+      "Tooltip": "Åpner Værvakt.no i nettleseren.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "PropertyInspectorPath": "ui/vaervakt.html",
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "static/imgs/actions/open/key",
           "ShowTitle": false,
           "TitleAlignment": "bottom"
         }

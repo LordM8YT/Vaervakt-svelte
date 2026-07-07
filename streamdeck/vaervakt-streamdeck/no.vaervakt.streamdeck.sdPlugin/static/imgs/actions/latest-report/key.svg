@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="26" fill="#061328"/>
+  <circle cx="108" cy="42" r="42" fill="#38bdf8" opacity=".25"/>
+  <path d="M0 0h25L0 25Z" fill="#38bdf8" opacity=".78"/>
+  <text x="13" y="34" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="12" font-weight="900">SISTE</text>
+  <text x="13" y="77" fill="#fff" font-family="Arial, sans-serif" font-size="52" font-weight="900">--°</text>
+  <text x="13" y="106" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="15" font-weight="900">LOKALT</text>
+  <text x="110" y="116" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="40">📍</text>
+</svg>

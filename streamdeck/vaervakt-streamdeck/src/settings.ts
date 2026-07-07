@@ -5,6 +5,8 @@ export type VaervaktSettings = {
   lon?: string | number;
   refreshMinutes?: string | number;
   openOnPress?: boolean;
+  reporterName?: string;
+  reportCondition?: string;
 };
 
 export const DEFAULT_SETTINGS: Required<VaervaktSettings> = {
@@ -14,6 +16,8 @@ export const DEFAULT_SETTINGS: Required<VaervaktSettings> = {
   lon: 7.9956,
   refreshMinutes: 10,
   openOnPress: true,
+  reporterName: "Stream Deck",
+  reportCondition: "Sol / Klart",
 };
 
 export function normalizeSettings(settings: VaervaktSettings = {}): Required<VaervaktSettings> {
@@ -30,5 +34,7 @@ export function normalizeSettings(settings: VaervaktSettings = {}): Required<Vae
       ? Math.max(2, Math.min(60, refreshMinutes))
       : DEFAULT_SETTINGS.refreshMinutes,
     openOnPress: settings.openOnPress !== false,
+    reporterName: String(settings.reporterName || DEFAULT_SETTINGS.reporterName).trim(),
+    reportCondition: String(settings.reportCondition || DEFAULT_SETTINGS.reportCondition).trim(),
   };
 }

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="26" fill="#061328"/>
+  <circle cx="72" cy="62" r="42" fill="#38bdf8" opacity=".20"/>
+  <path d="M0 0h25L0 25Z" fill="#38bdf8" opacity=".78"/>
+  <text x="13" y="34" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="12" font-weight="900">ÅPNE</text>
+  <text x="72" y="78" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="46">🌤️</text>
+  <text x="13" y="106" fill="#fff" font-family="Arial, sans-serif" font-size="18" font-weight="900">VÆRVAKT</text>
+  <text x="13" y="124" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="11" font-weight="800">NETTSIDEN</text>
+</svg>

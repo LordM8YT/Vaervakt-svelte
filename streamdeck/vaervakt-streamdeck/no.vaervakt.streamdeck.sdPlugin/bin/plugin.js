@@ -9194,7 +9194,10 @@ const DEFAULT_SETTINGS = {
     placeName: "Kristiansand",
     lat: 58.1467,
     lon: 7.9956,
-    refreshMinutes: 10};
+    refreshMinutes: 10,
+    reporterName: "Stream Deck",
+    reportCondition: "Sol / Klart",
+};
 function normalizeSettings(settings = {}) {
     const lat = Number(settings.lat ?? DEFAULT_SETTINGS.lat);
     const lon = Number(settings.lon ?? DEFAULT_SETTINGS.lon);
@@ -9208,6 +9211,8 @@ function normalizeSettings(settings = {}) {
             ? Math.max(2, Math.min(60, refreshMinutes))
             : DEFAULT_SETTINGS.refreshMinutes,
         openOnPress: settings.openOnPress !== false,
+        reporterName: String(settings.reporterName || DEFAULT_SETTINGS.reporterName).trim(),
+        reportCondition: String(settings.reportCondition || DEFAULT_SETTINGS.reportCondition).trim(),
     };
 }
 
@@ -9235,6 +9240,57 @@ async function fetchVaervaktWeather(settings) {
     }
     return payload;
 }
+async function fetchLatestReport(settings) {
+    const normalized = normalizeSettings(settings);
+    const params = new URLSearchParams({
+        limit: "1",
+        lat: String(normalized.lat),
+        lon: String(normalized.lon),
+        radiusKm: "35",
+        location: normalized.placeName,
+    });
+    const response = await fetch(`${normalized.apiBase}/api/reports.php?${params.toString()}`, {
+        headers: {
+            Accept: "application/json",
+            "User-Agent": "Vaervakt-StreamDeck/0.2",
+        },
+    });
+    if (!response.ok) {
+        throw new Error(`Værvakt svarte med HTTP ${response.status}.`);
+    }
+    const payload = (await response.json());
+    if (payload.success === false) {
+        throw new Error(payload.message || "Kunne ikke hente siste rapport.");
+    }
+    return payload.reports?.[0] ?? null;
+}
+async function submitQuickReport(settings, weather) {
+    const normalized = normalizeSettings(settings);
+    const response = await fetch(`${normalized.apiBase}/api/reports.php`, {
+        method: "POST",
+        headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Vaervakt-StreamDeck/0.2",
+        },
+        body: JSON.stringify({
+            username: normalized.reporterName,
+            condition: normalized.reportCondition,
+            location: normalized.placeName,
+            temperature: weather.current.temperature,
+            lat: normalized.lat,
+            lon: normalized.lon,
+        }),
+    });
+    if (!response.ok) {
+        throw new Error(`Værvakt svarte med HTTP ${response.status}.`);
+    }
+    const payload = (await response.json());
+    if (payload.success === false) {
+        throw new Error(payload.message || "Rapporten kunne ikke sendes.");
+    }
+    return payload.message || "Rapporten er sendt.";
+}
 
 function escapeXml(value) {
     return value
@@ -9255,109 +9311,156 @@ function formatDistance(value) {
         return "";
     }
     if (distance < 1) {
-        return `${Math.max(1, Math.round(distance * 1000))} M UNNA`;
+        return `${Math.max(1, Math.round(distance * 1000))} M`;
     }
-    return `${distance.toFixed(1).replace(".", ",")} KM UNNA`;
+    return `${distance.toFixed(1).replace(".", ",")} KM`;
 }
 function formatShortTime(value) {
     if (!value) {
-        return "YR";
+        return "NÅ";
     }
     const date = new Date(value.replace(" ", "T"));
     if (Number.isNaN(date.getTime())) {
-        return "YR";
+        return "NÅ";
     }
     return new Intl.DateTimeFormat("nb-NO", {
-        day: "2-digit",
-        month: "short",
         hour: "2-digit",
         minute: "2-digit",
-    })
-        .format(date)
-        .replace(".", "")
-        .toUpperCase();
+    }).format(date);
 }
 function truncate(value, maxLength) {
     return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
 }
-function compactLabel(value, maxLength) {
+function upper(value, maxLength) {
     return truncate(value, maxLength).toUpperCase();
 }
+function conditionIcon(condition = "") {
+    const lower = condition.toLowerCase();
+    if (lower.includes("snø") || lower.includes("sludd"))
+        return "❄️";
+    if (lower.includes("regn") || lower.includes("byge"))
+        return "🌧️";
+    if (lower.includes("torden") || lower.includes("storm") || lower.includes("vind"))
+        return "⛈️";
+    if (lower.includes("tåke"))
+        return "🌫️";
+    if (lower.includes("sky"))
+        return "☁️";
+    return "☀️";
+}
+function shell(content, accent = "#38bdf8", glowX = 106, glowY = 106) {
+    return `
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <defs>
+    <linearGradient id="bg" x1="10" y1="0" x2="134" y2="144" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#16386e"/>
+      <stop offset="0.45" stop-color="#07162d"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(${glowX} ${glowY}) rotate(120) scale(76)">
+      <stop stop-color="${accent}" stop-opacity="0.66"/>
+      <stop offset="1" stop-color="${accent}" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#000" flood-opacity="0.34"/>
+    </filter>
+  </defs>
+  <rect width="144" height="144" rx="26" fill="url(#bg)"/>
+  <rect width="144" height="144" rx="26" fill="url(#glow)"/>
+  <path d="M0 0h25L0 25Z" fill="${accent}" opacity=".78"/>
+  <path d="M144 144h-25l25-25Z" fill="#2563eb" opacity=".78"/>
+  <rect x="7" y="7" width="130" height="130" rx="22" fill="rgba(255,255,255,.035)" stroke="rgba(186,230,253,.18)" stroke-width="1"/>
+  ${content}
+</svg>`;
+}
+function dataUri(svg) {
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+function text(value, maxLength) {
+    return escapeXml(upper(value, maxLength));
+}
 function makeKeyImage(input) {
-    const place = escapeXml(compactLabel(input.placeName || "Værvakt", 13));
-    const condition = escapeXml(compactLabel(input.condition || "Lokalt vær", 13));
-    const icon = escapeXml(input.icon || (input.mode === "weather" ? "☁️" : "🌊"));
+    const status = input.status || "ok";
+    const place = text(input.placeName || "Værvakt", 13);
+    const condition = text(input.condition || "Lokalt vær", 13);
+    const icon = escapeXml(input.icon || conditionIcon(input.condition));
     const temp = escapeXml(formatTemperature(input.temperature));
     const bathTemp = escapeXml(formatTemperature(input.bathTemperature));
-    const bathPlace = escapeXml(compactLabel(input.bathPlace || "Badeplass", 13));
-    const bathDistance = escapeXml(formatDistance(input.bathDistanceKm) || "I NÆRHETEN");
+    const bathPlace = text(input.bathPlace || "Badeplass", 14);
+    const bathDistance = escapeXml(formatDistance(input.bathDistanceKm) || "NÆR DEG");
     const bathTime = escapeXml(formatShortTime(input.bathTime));
-    const status = input.status || "ok";
-    const message = escapeXml(compactLabel(input.message || "Sjekker Værvakt", 13));
-    const isBath = input.mode === "bath";
-    const isBathInfo = input.mode === "bathInfo";
-    if (isBathInfo) {
-        const primary = status === "error" ? "FEIL" : status === "loading" ? "LASTER" : bathPlace;
-        const secondary = status === "error" ? message : status === "loading" ? "BADETEMP INFO" : bathDistance;
-        const tertiary = status === "error" ? "PRØV IGJEN" : status === "loading" ? "YR" : `YR · ${bathTime}`;
-        const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
-  <defs>
-    <linearGradient id="bg" x1="12" y1="0" x2="132" y2="144" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#12305f"/>
-      <stop offset="0.52" stop-color="#061328"/>
-      <stop offset="1" stop-color="#020617"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(106 104) rotate(120) scale(70)">
-      <stop stop-color="#38bdf8" stop-opacity="0.58"/>
-      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="144" height="144" rx="26" fill="url(#bg)"/>
-  <rect width="144" height="144" rx="26" fill="url(#glow)"/>
-  <path d="M0 0h22L0 22Z" fill="#38bdf8" opacity=".72"/>
-  <path d="M144 144h-22l22-22Z" fill="#2563eb" opacity=".72"/>
-  <text x="13" y="33" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="12" font-weight="900">BADESTED</text>
-  <text x="13" y="65" fill="#ffffff" font-family="Arial, sans-serif" font-size="20" font-weight="900">${primary}</text>
-  <text x="13" y="91" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="14" font-weight="900">${secondary}</text>
-  <text x="13" y="111" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="10.5" font-weight="800">${tertiary}</text>
-  <text x="111" y="119" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="40">🌊</text>
-</svg>`;
-        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    const message = text(input.message || "Oppdaterer", 13);
+    const reportCondition = input.reportCondition || "Sol / Klart";
+    const reportIcon = conditionIcon(reportCondition);
+    const reportLabel = text(reportCondition, 13);
+    if (status === "error") {
+        return dataUri(shell(`
+  <text x="13" y="34" fill="#fecdd3" font-family="Arial, sans-serif" font-size="12" font-weight="900">VÆRVAKT</text>
+  <text x="13" y="78" fill="#ffffff" font-family="Arial, sans-serif" font-size="50" font-weight="900">!</text>
+  <text x="13" y="105" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="14" font-weight="900">FEIL</text>
+  <text x="13" y="123" fill="#fecdd3" font-family="Arial, sans-serif" font-size="10.5" font-weight="800">${message}</text>
+`, "#fb7185", 104, 38));
     }
-    const centerText = status === "error" ? "!" : isBath ? bathTemp : temp;
-    const bottomPrimary = status === "error" ? "FEIL" : isBath ? bathPlace : place;
-    const bottomSecondary = status === "error"
-        ? message
-        : isBath
-            ? "BADETEMP FRA YR"
-            : input.bathTemperature
-                ? `Bad ${bathTemp}`
-                : condition;
-    const temperatureSize = centerText.length > 3 ? 48 : 60;
-    const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
-  <defs>
-    <linearGradient id="bg" x1="12" y1="0" x2="132" y2="144" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#12305f"/>
-      <stop offset="0.52" stop-color="#061328"/>
-      <stop offset="1" stop-color="#020617"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(105 30) rotate(120) scale(72)">
-      <stop stop-color="#38bdf8" stop-opacity="0.75"/>
-      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="144" height="144" rx="26" fill="url(#bg)"/>
-  <rect width="144" height="144" rx="26" fill="url(#glow)"/>
-  <path d="M0 0h22L0 22Z" fill="#38bdf8" opacity=".72"/>
-  <path d="M144 144h-22l22-22Z" fill="#2563eb" opacity=".72"/>
-  <text x="11" y="56" fill="#ffffff" font-family="Arial, sans-serif" font-size="${temperatureSize}" font-weight="900">${centerText}</text>
-  <text x="13" y="86" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="15" font-weight="900">${bottomPrimary}</text>
-  <text x="13" y="105" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="10.5" font-weight="800">${escapeXml(bottomSecondary)}</text>
-  <text x="110" y="116" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="42">${icon}</text>
-</svg>`;
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    if (input.mode === "bathInfo") {
+        return dataUri(shell(`
+  <text x="13" y="32" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="12" font-weight="900">BADESTED</text>
+  <text x="13" y="65" fill="#ffffff" font-family="Arial, sans-serif" font-size="20" font-weight="900">${status === "loading" ? "LASTER" : bathPlace}</text>
+  <text x="13" y="91" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="15" font-weight="900">${status === "loading" ? "BADETEMP" : bathDistance}</text>
+  <text x="13" y="112" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="11" font-weight="800">${status === "loading" ? "YR" : `YR · ${bathTime}`}</text>
+  <text x="111" y="119" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="40">🌊</text>
+`, "#38bdf8"));
+    }
+    if (input.mode === "latest") {
+        const report = input.latestReport;
+        const latestIcon = escapeXml(report?.icon || "📍");
+        const latestTemp = escapeXml(formatTemperature(report?.temp));
+        const latestLocation = text(report?.location || input.placeName || "Lokalt", 13);
+        const latestMeta = text(report ? `${report.condition} · ${report.time}` : "Ingen rapport", 17);
+        return dataUri(shell(`
+  <text x="13" y="32" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="12" font-weight="900">SISTE</text>
+  <text x="11" y="74" fill="#ffffff" font-family="Arial, sans-serif" font-size="${latestTemp.length > 3 ? 44 : 54}" font-weight="900">${status === "loading" ? "--" : latestTemp}</text>
+  <text x="13" y="101" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="14" font-weight="900">${latestLocation}</text>
+  <text x="13" y="121" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="10.5" font-weight="800">${latestMeta}</text>
+  <text x="110" y="113" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="38">${latestIcon}</text>
+`, "#38bdf8", 108, 42));
+    }
+    if (input.mode === "report") {
+        const label = status === "success" ? "SENDT" : status === "loading" ? "SENDER" : "RAPPORT";
+        const sub = status === "success" ? "TAKK" : reportLabel;
+        const mainIcon = status === "success" ? "✅" : reportIcon;
+        return dataUri(shell(`
+  <text x="13" y="32" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="12" font-weight="900">VÆRVAKT</text>
+  <text x="72" y="75" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="44" filter="url(#softShadow)">${mainIcon}</text>
+  <text x="13" y="103" fill="#ffffff" font-family="Arial, sans-serif" font-size="20" font-weight="900">${label}</text>
+  <text x="13" y="122" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="11" font-weight="800">${sub}</text>
+`, status === "success" ? "#22c55e" : "#38bdf8", 100, 42));
+    }
+    if (input.mode === "open") {
+        return dataUri(shell(`
+  <text x="13" y="32" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="12" font-weight="900">ÅPNE</text>
+  <text x="72" y="76" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="46" filter="url(#softShadow)">🌤️</text>
+  <text x="13" y="105" fill="#ffffff" font-family="Arial, sans-serif" font-size="18" font-weight="900">VÆRVAKT</text>
+  <text x="13" y="123" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="11" font-weight="800">${place}</text>
+`, "#38bdf8", 100, 40));
+    }
+    if (input.mode === "bath") {
+        const mainTemp = status === "loading" ? "--" : bathTemp;
+        return dataUri(shell(`
+  <text x="13" y="32" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="12" font-weight="900">BADETEMP</text>
+  <text x="11" y="74" fill="#ffffff" font-family="Arial, sans-serif" font-size="${mainTemp.length > 3 ? 48 : 60}" font-weight="900">${mainTemp}</text>
+  <text x="13" y="101" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="14" font-weight="900">${bathPlace}</text>
+  <text x="13" y="121" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="10.5" font-weight="800">YR · ${bathDistance}</text>
+  <text x="110" y="115" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="40">🌊</text>
+`, "#38bdf8", 108, 42));
+    }
+    const mainTemp = status === "loading" ? "--" : temp;
+    return dataUri(shell(`
+  <text x="13" y="32" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="12" font-weight="900">NÅ</text>
+  <text x="11" y="74" fill="#ffffff" font-family="Arial, sans-serif" font-size="${mainTemp.length > 3 ? 48 : 60}" font-weight="900">${mainTemp}</text>
+  <text x="13" y="101" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="14" font-weight="900">${place}</text>
+  <text x="13" y="121" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="10.5" font-weight="800">${condition}</text>
+  <text x="110" y="115" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="40">${icon}</text>
+`, "#38bdf8", 108, 42));
 }
 
 class BaseVaervaktAction extends SingletonAction {
@@ -9484,6 +9587,188 @@ let BathTemperatureAction = (() => {
     return _classThis;
 })();
 
+let LatestReportAction = (() => {
+    let _classDecorators = [vaervaktAction("no.vaervakt.streamdeck.latest-report")];
+    let _classDescriptor;
+    let _classExtraInitializers = [];
+    let _classThis;
+    let _classSuper = SingletonAction;
+    (class extends _classSuper {
+        static { _classThis = this; }
+        static {
+            const _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(_classSuper[Symbol.metadata] ?? null) : void 0;
+            __esDecorate(null, _classDescriptor = { value: _classThis }, _classDecorators, { kind: "class", name: _classThis.name, metadata: _metadata }, null, _classExtraInitializers);
+            _classThis = _classDescriptor.value;
+            if (_metadata) Object.defineProperty(_classThis, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
+            __runInitializers(_classThis, _classExtraInitializers);
+        }
+        timers = new Map();
+        async onWillAppear(ev) {
+            await this.refresh(ev.action, ev.payload.settings);
+            this.scheduleRefresh(ev.action, ev.payload.settings);
+        }
+        onWillDisappear(ev) {
+            this.clearRefresh(ev.action.id);
+        }
+        async onDidReceiveSettings(ev) {
+            await this.refresh(ev.action, ev.payload.settings);
+            this.scheduleRefresh(ev.action, ev.payload.settings);
+        }
+        async onKeyDown(ev) {
+            const settings = normalizeSettings(ev.payload.settings);
+            await this.refresh(ev.action, ev.payload.settings);
+            if (settings.openOnPress) {
+                await streamDeck.system.openUrl(`${settings.apiBase}/lokalt/`);
+            }
+        }
+        scheduleRefresh(actionInstance, settings) {
+            this.clearRefresh(actionInstance.id);
+            const normalized = normalizeSettings(settings);
+            const timer = setInterval(() => {
+                void this.refresh(actionInstance, settings);
+            }, Number(normalized.refreshMinutes) * 60 * 1000);
+            this.timers.set(actionInstance.id, timer);
+        }
+        clearRefresh(actionId) {
+            const timer = this.timers.get(actionId);
+            if (timer) {
+                clearInterval(timer);
+                this.timers.delete(actionId);
+            }
+        }
+        async refresh(actionInstance, rawSettings) {
+            const settings = normalizeSettings(rawSettings);
+            await actionInstance.setTitle("");
+            await actionInstance.setImage(makeKeyImage({
+                mode: "latest",
+                placeName: settings.placeName,
+                status: "loading",
+            }));
+            try {
+                const report = await fetchLatestReport(settings);
+                await actionInstance.setImage(makeKeyImage({
+                    mode: "latest",
+                    placeName: settings.placeName,
+                    latestReport: report,
+                    status: "ok",
+                }));
+            }
+            catch (error) {
+                await actionInstance.setImage(makeKeyImage({
+                    mode: "latest",
+                    placeName: settings.placeName,
+                    status: "error",
+                    message: error instanceof Error ? error.message : "Kunne ikke hente rapport",
+                }));
+            }
+        }
+    });
+    return _classThis;
+})();
+
+let OpenVaervaktAction = (() => {
+    let _classDecorators = [vaervaktAction("no.vaervakt.streamdeck.open")];
+    let _classDescriptor;
+    let _classExtraInitializers = [];
+    let _classThis;
+    let _classSuper = SingletonAction;
+    (class extends _classSuper {
+        static { _classThis = this; }
+        static {
+            const _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(_classSuper[Symbol.metadata] ?? null) : void 0;
+            __esDecorate(null, _classDescriptor = { value: _classThis }, _classDecorators, { kind: "class", name: _classThis.name, metadata: _metadata }, null, _classExtraInitializers);
+            _classThis = _classDescriptor.value;
+            if (_metadata) Object.defineProperty(_classThis, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
+            __runInitializers(_classThis, _classExtraInitializers);
+        }
+        async onWillAppear(ev) {
+            await this.render(ev.action, ev.payload.settings);
+        }
+        async onDidReceiveSettings(ev) {
+            await this.render(ev.action, ev.payload.settings);
+        }
+        async onKeyDown(ev) {
+            const settings = normalizeSettings(ev.payload.settings);
+            await streamDeck.system.openUrl(settings.apiBase);
+        }
+        async render(actionInstance, rawSettings) {
+            const settings = normalizeSettings(rawSettings);
+            await actionInstance.setTitle("");
+            await actionInstance.setImage(makeKeyImage({
+                mode: "open",
+                placeName: settings.placeName,
+                status: "ok",
+            }));
+        }
+    });
+    return _classThis;
+})();
+
+let QuickReportAction = (() => {
+    let _classDecorators = [vaervaktAction("no.vaervakt.streamdeck.quick-report")];
+    let _classDescriptor;
+    let _classExtraInitializers = [];
+    let _classThis;
+    let _classSuper = SingletonAction;
+    (class extends _classSuper {
+        static { _classThis = this; }
+        static {
+            const _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(_classSuper[Symbol.metadata] ?? null) : void 0;
+            __esDecorate(null, _classDescriptor = { value: _classThis }, _classDecorators, { kind: "class", name: _classThis.name, metadata: _metadata }, null, _classExtraInitializers);
+            _classThis = _classDescriptor.value;
+            if (_metadata) Object.defineProperty(_classThis, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
+            __runInitializers(_classThis, _classExtraInitializers);
+        }
+        async onWillAppear(ev) {
+            await this.renderIdle(ev.action, ev.payload.settings);
+        }
+        async onDidReceiveSettings(ev) {
+            await this.renderIdle(ev.action, ev.payload.settings);
+        }
+        async onKeyDown(ev) {
+            const settings = normalizeSettings(ev.payload.settings);
+            await ev.action.setTitle("");
+            await ev.action.setImage(makeKeyImage({
+                mode: "report",
+                placeName: settings.placeName,
+                reportCondition: settings.reportCondition,
+                status: "loading",
+            }));
+            try {
+                const weather = await fetchVaervaktWeather(settings);
+                await submitQuickReport(settings, weather);
+                await ev.action.setImage(makeKeyImage({
+                    mode: "report",
+                    placeName: settings.placeName,
+                    reportCondition: settings.reportCondition,
+                    status: "success",
+                }));
+                setTimeout(() => void this.renderIdle(ev.action, ev.payload.settings), 1800);
+            }
+            catch (error) {
+                await ev.action.setImage(makeKeyImage({
+                    mode: "report",
+                    placeName: settings.placeName,
+                    reportCondition: settings.reportCondition,
+                    status: "error",
+                    message: error instanceof Error ? error.message : "Kunne ikke sende",
+                }));
+            }
+        }
+        async renderIdle(actionInstance, rawSettings) {
+            const settings = normalizeSettings(rawSettings);
+            await actionInstance.setTitle("");
+            await actionInstance.setImage(makeKeyImage({
+                mode: "report",
+                placeName: settings.placeName,
+                reportCondition: settings.reportCondition,
+                status: "ok",
+            }));
+        }
+    });
+    return _classThis;
+})();
+
 let WeatherNowAction = (() => {
     let _classDecorators = [vaervaktAction("no.vaervakt.streamdeck.now")];
     let _classDescriptor;
@@ -9509,5 +9794,8 @@ let WeatherNowAction = (() => {
 streamDeck.actions.registerAction(new WeatherNowAction());
 streamDeck.actions.registerAction(new BathTemperatureAction());
 streamDeck.actions.registerAction(new BathInfoAction());
+streamDeck.actions.registerAction(new LatestReportAction());
+streamDeck.actions.registerAction(new QuickReportAction());
+streamDeck.actions.registerAction(new OpenVaervaktAction());
 streamDeck.connect();
 //# sourceMappingURL=plugin.js.map
