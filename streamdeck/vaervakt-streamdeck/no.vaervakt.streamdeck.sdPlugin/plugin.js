@@ -1,7 +1,6 @@
 let websocket = null;
 let pluginUUID = null;
 
-const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 10 * 1000;
 
 const ACTIONS = {
@@ -18,6 +17,9 @@ const DEFAULT_SETTINGS = {
   placeName: "Kristiansand",
   lat: 58.1467,
   lon: 7.9956,
+  refreshMinutes: 5,
+  bathLocationId: "",
+  bathLocationName: "",
   reporterName: "Stream Deck",
   reportCondition: "Sol / Klart",
   openOnPress: true,
@@ -79,12 +81,16 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent) {
 function normalizeSettings(settings = {}) {
   const lat = Number(settings.lat ?? DEFAULT_SETTINGS.lat);
   const lon = Number(settings.lon ?? DEFAULT_SETTINGS.lon);
+  const refreshMinutes = Number(settings.refreshMinutes ?? DEFAULT_SETTINGS.refreshMinutes);
 
   return {
     apiBase: String(settings.apiBase || DEFAULT_SETTINGS.apiBase).replace(/\/+$/, ""),
     placeName: String(settings.placeName || DEFAULT_SETTINGS.placeName).trim(),
     lat: Number.isFinite(lat) ? lat : DEFAULT_SETTINGS.lat,
     lon: Number.isFinite(lon) ? lon : DEFAULT_SETTINGS.lon,
+    refreshMinutes: Number.isFinite(refreshMinutes) ? Math.min(60, Math.max(2, refreshMinutes)) : DEFAULT_SETTINGS.refreshMinutes,
+    bathLocationId: String(settings.bathLocationId || DEFAULT_SETTINGS.bathLocationId).trim(),
+    bathLocationName: String(settings.bathLocationName || DEFAULT_SETTINGS.bathLocationName).trim(),
     reporterName: String(settings.reporterName || DEFAULT_SETTINGS.reporterName).trim(),
     reportCondition: String(settings.reportCondition || DEFAULT_SETTINGS.reportCondition).trim(),
     openOnPress: settings.openOnPress !== false,
@@ -93,9 +99,11 @@ function normalizeSettings(settings = {}) {
 
 function scheduleRefresh(context) {
   clearRefresh(context);
+  const state = contexts.get(context);
+  const refreshMinutes = state?.settings?.refreshMinutes || DEFAULT_SETTINGS.refreshMinutes;
   const timer = setInterval(() => {
     void refreshContext(context);
-  }, REFRESH_INTERVAL_MS);
+  }, refreshMinutes * 60 * 1000);
   timers.set(context, timer);
 }
 
@@ -173,7 +181,7 @@ async function refreshContext(context) {
     }
 
     const weather = await fetchWeather(settings);
-    const nearestBath = weather.bathing?.nearby?.[0];
+    const nearestBath = selectBathLocation(weather.bathing, settings) || weather.bathing?.nearby?.[0];
     const bathTemperature = nearestBath?.temperature ?? weather.bathing?.waterTemperature;
     const bathPlace = nearestBath?.name ?? weather.bathing?.waterTemperatureLocation;
     const bathDistanceKm = nearestBath?.distanceKm ?? weather.bathing?.waterTemperatureDistanceKm;
@@ -263,6 +271,20 @@ function modeFromAction(action) {
   if (action === ACTIONS.report) return "report";
   if (action === ACTIONS.open) return "open";
   return "weather";
+}
+
+function selectBathLocation(bathing, settings) {
+  const nearby = Array.isArray(bathing?.nearby) ? bathing.nearby : [];
+  if (!nearby.length || (!settings.bathLocationId && !settings.bathLocationName)) {
+    return null;
+  }
+
+  return nearby.find((place) => {
+    const idMatches = settings.bathLocationId && String(place.locationId || "") === settings.bathLocationId;
+    const nameMatches = settings.bathLocationName
+      && String(place.name || "").toLowerCase() === settings.bathLocationName.toLowerCase();
+    return idMatches || nameMatches;
+  }) || null;
 }
 
 async function fetchWeather(settings) {

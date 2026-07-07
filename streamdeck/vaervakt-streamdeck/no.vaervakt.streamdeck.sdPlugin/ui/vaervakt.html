@@ -101,6 +101,34 @@
       padding: 10px 12px;
     }
 
+    button.secondary {
+      border: 1px solid rgba(148, 163, 184, .24);
+      background: rgba(15, 23, 42, .72);
+      color: var(--text);
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+      margin: 0 0 12px;
+    }
+
+    .status {
+      min-height: 18px;
+      margin: -2px 0 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .status[data-tone="ok"] {
+      color: #86efac;
+    }
+
+    .status[data-tone="error"] {
+      color: #fecdd3;
+    }
+
     .hint {
       margin: 12px 0 0;
       color: var(--muted);
@@ -138,10 +166,27 @@
       </label>
     </div>
 
+    <div class="actions">
+      <button type="button" class="secondary" id="usePosition">Bruk posisjon</button>
+      <div class="status" id="positionStatus"></div>
+    </div>
+
     <label>
       Oppdater hvert X minutt
       <input id="refreshMinutes" name="refreshMinutes" type="number" min="2" max="60" step="1" placeholder="10">
     </label>
+
+    <div class="section">Badetemperatur</div>
+    <label>
+      Badeplass for badetemp-knapp
+      <select id="bathLocationId" name="bathLocationId">
+        <option value="">Nærmeste automatisk</option>
+      </select>
+    </label>
+    <div class="actions">
+      <button type="button" class="secondary" id="loadBathPlaces">Hent badeplasser nær stedet</button>
+      <div class="status" id="bathStatus"></div>
+    </div>
 
     <div class="section">Hurtigrapport</div>
     <label>
@@ -182,7 +227,9 @@
       placeName: "Kristiansand",
       lat: 58.1467,
       lon: 7.9956,
-      refreshMinutes: 10,
+      refreshMinutes: 5,
+      bathLocationId: "",
+      bathLocationName: "",
       openOnPress: true,
       reporterName: "Stream Deck",
       reportCondition: "Sol / Klart"
@@ -193,16 +240,26 @@
     let settings = { ...defaults };
 
     const form = document.getElementById("settings-form");
+    const positionStatus = document.getElementById("positionStatus");
+    const bathStatus = document.getElementById("bathStatus");
+    const usePositionButton = document.getElementById("usePosition");
+    const loadBathPlacesButton = document.getElementById("loadBathPlaces");
     const fields = {
       apiBase: document.getElementById("apiBase"),
       placeName: document.getElementById("placeName"),
       lat: document.getElementById("lat"),
       lon: document.getElementById("lon"),
       refreshMinutes: document.getElementById("refreshMinutes"),
+      bathLocationId: document.getElementById("bathLocationId"),
       openOnPress: document.getElementById("openOnPress"),
       reporterName: document.getElementById("reporterName"),
       reportCondition: document.getElementById("reportCondition")
     };
+
+    function setStatus(element, message, tone = "") {
+      element.textContent = message;
+      element.dataset.tone = tone;
+    }
 
     function render() {
       fields.apiBase.value = settings.apiBase || defaults.apiBase;
@@ -210,6 +267,8 @@
       fields.lat.value = settings.lat ?? defaults.lat;
       fields.lon.value = settings.lon ?? defaults.lon;
       fields.refreshMinutes.value = settings.refreshMinutes || defaults.refreshMinutes;
+      ensureBathOption(settings.bathLocationId || "", settings.bathLocationName || "");
+      fields.bathLocationId.value = settings.bathLocationId || "";
       fields.openOnPress.checked = settings.openOnPress !== false;
       fields.reporterName.value = settings.reporterName || defaults.reporterName;
       fields.reportCondition.value = settings.reportCondition || defaults.reportCondition;
@@ -222,6 +281,8 @@
         lat: fields.lat.value.trim() || String(defaults.lat),
         lon: fields.lon.value.trim() || String(defaults.lon),
         refreshMinutes: fields.refreshMinutes.value || defaults.refreshMinutes,
+        bathLocationId: fields.bathLocationId.value || "",
+        bathLocationName: getSelectedBathName(),
         openOnPress: fields.openOnPress.checked,
         reporterName: fields.reporterName.value.trim() || defaults.reporterName,
         reportCondition: fields.reportCondition.value || defaults.reportCondition
@@ -238,6 +299,132 @@
       }));
     }
 
+    function getSelectedBathName() {
+      const selected = fields.bathLocationId.selectedOptions[0];
+      return fields.bathLocationId.value ? selected?.dataset.name || selected?.textContent || "" : "";
+    }
+
+    function ensureBathOption(id, name) {
+      if (!id || findBathOption(id)) {
+        return;
+      }
+
+      const option = document.createElement("option");
+      option.value = id;
+      option.dataset.name = name || id;
+      option.textContent = name || id;
+      fields.bathLocationId.append(option);
+    }
+
+    function updateBathOptions(places) {
+      const currentId = fields.bathLocationId.value || settings.bathLocationId || "";
+      fields.bathLocationId.innerHTML = "";
+
+      const automatic = document.createElement("option");
+      automatic.value = "";
+      automatic.textContent = "Nærmeste automatisk";
+      fields.bathLocationId.append(automatic);
+
+      places.forEach((place) => {
+        if (!place.locationId || !place.name) return;
+        const option = document.createElement("option");
+        option.value = String(place.locationId);
+        option.dataset.name = String(place.name);
+        option.textContent = `${place.name} (${formatDistance(place.distanceKm)})`;
+        fields.bathLocationId.append(option);
+      });
+
+      fields.bathLocationId.value = findBathOption(currentId)
+        ? currentId
+        : "";
+    }
+
+    function findBathOption(id) {
+      return Array.from(fields.bathLocationId.options).find((option) => option.value === id);
+    }
+
+    async function requestJson(url) {
+      const response = await fetch(url, {
+        headers: { Accept: "application/json" }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      return response.json();
+    }
+
+    async function loadBathPlaces(shouldSave = true) {
+      const current = readForm();
+      const params = new URLSearchParams({
+        lat: current.lat,
+        lon: current.lon
+      });
+
+      setStatus(bathStatus, "Henter badeplasser...");
+      const payload = await requestJson(`${current.apiBase}/api/weather.php?${params.toString()}`);
+      const places = Array.isArray(payload.bathing?.nearby) ? payload.bathing.nearby : [];
+      updateBathOptions(places);
+      if (shouldSave) {
+        saveSettings();
+      }
+
+      if (!places.length) {
+        setStatus(bathStatus, "Fant ingen ferske badeplasser nær dette stedet.", "error");
+        return;
+      }
+
+      setStatus(bathStatus, `Fant ${places.length} badeplasser nær stedet.`, "ok");
+    }
+
+    function formatDistance(value) {
+      const distance = Number(value);
+      if (!Number.isFinite(distance)) return "ukjent avstand";
+      return distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} m` : `${distance.toFixed(1).replace(".", ",")} km`;
+    }
+
+    async function useCurrentPosition() {
+      if (!navigator.geolocation) {
+        setStatus(positionStatus, "Denne Stream Deck-visningen støtter ikke GPS.", "error");
+        return;
+      }
+
+      setStatus(positionStatus, "Henter posisjon...");
+      usePositionButton.disabled = true;
+
+      try {
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 12000,
+            maximumAge: 60000
+          });
+        });
+
+        const lat = Number(position.coords.latitude).toFixed(5);
+        const lon = Number(position.coords.longitude).toFixed(5);
+        fields.lat.value = lat;
+        fields.lon.value = lon;
+
+        const current = readForm();
+        const params = new URLSearchParams({ lat, lon });
+        const payload = await requestJson(`${current.apiBase}/api/geocode.php?${params.toString()}`);
+        if (payload.result?.name) {
+          fields.placeName.value = payload.result.name;
+        }
+
+        saveSettings();
+        setStatus(positionStatus, "Posisjon lagret på knappen.", "ok");
+        await loadBathPlaces();
+      } catch (error) {
+        const message = error?.message || "Kunne ikke hente posisjon.";
+        setStatus(positionStatus, message, "error");
+      } finally {
+        usePositionButton.disabled = false;
+      }
+    }
+
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       saveSettings();
@@ -247,11 +434,22 @@
       field.addEventListener("change", saveSettings);
     });
 
+    usePositionButton.addEventListener("click", () => {
+      void useCurrentPosition();
+    });
+
+    loadBathPlacesButton.addEventListener("click", () => {
+      loadBathPlaces().catch((error) => {
+        setStatus(bathStatus, error?.message || "Kunne ikke hente badeplasser.", "error");
+      });
+    });
+
     window.connectElgatoStreamDeckSocket = (port, uuid, registerEvent, info, actionInfo) => {
       context = uuid;
       const parsedActionInfo = JSON.parse(actionInfo || "{}");
       settings = { ...defaults, ...(parsedActionInfo.payload?.settings || {}) };
       render();
+      loadBathPlaces(false).catch(() => {});
 
       websocket = new WebSocket(`ws://127.0.0.1:${port}`);
       websocket.onopen = () => {
@@ -262,6 +460,7 @@
         if (message.event === "didReceiveSettings") {
           settings = { ...defaults, ...(message.payload?.settings || {}) };
           render();
+          loadBathPlaces(false).catch(() => {});
         }
       };
     };
