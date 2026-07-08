@@ -1,0 +1,109 @@
+name: Sync React build to production repo
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "public/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-react-build-to-production
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Build and push frontend to Vaervakt.no
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out React source
+        uses: actions/checkout@v6
+        with:
+          path: source
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+
+      - name: Build React app
+        working-directory: source
+        env:
+          CI: false
+        run: |
+          npm ci
+          npm run build
+
+      - name: Check sync token
+        env:
+          VAERVAKT_SYNC_TOKEN: ${{ secrets.VAERVAKT_SYNC_TOKEN }}
+        run: |
+          set -eu
+          if [ -z "${VAERVAKT_SYNC_TOKEN:-}" ]; then
+            echo "::error::Missing VAERVAKT_SYNC_TOKEN secret in Vaervakt-react."
+            exit 1
+          fi
+
+      - name: Check out production repo
+        uses: actions/checkout@v6
+        with:
+          repository: LordM8YT/Vaervakt.no
+          token: ${{ secrets.VAERVAKT_SYNC_TOKEN }}
+          path: production
+
+      - name: Copy build into production repo
+        env:
+          BUILD_DIR: ${{ github.workspace }}/source/build
+          PROD_DIR: ${{ github.workspace }}/production
+        run: |
+          set -eu
+
+          rm -rf "${PROD_DIR}/static"
+          cp -a "${BUILD_DIR}/static" "${PROD_DIR}/static"
+
+          for file in asset-manifest.json index.html manifest.json robots.txt weather.ico weather.png; do
+            if [ -f "${BUILD_DIR}/${file}" ]; then
+              cp -f "${BUILD_DIR}/${file}" "${PROD_DIR}/${file}"
+            fi
+          done
+
+          node <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+
+          const indexPath = path.join(process.env.PROD_DIR, "index.html");
+          const enhancement = '<script defer="defer" src="/assets/js/live-enhancements.js?v=11"></script>';
+          let html = fs.readFileSync(indexPath, "utf8");
+
+          if (!html.includes("/assets/js/live-enhancements.js")) {
+            html = html.replace(/(<script defer="defer" src="\/static\/js\/)/, `${enhancement}$1`);
+          }
+
+          fs.writeFileSync(indexPath, html);
+          NODE
+
+      - name: Commit production build
+        working-directory: production
+        run: |
+          set -eu
+
+          git config user.name "Vaervakt Build Bot"
+          git config user.email "actions@github.com"
+
+          git add asset-manifest.json index.html manifest.json robots.txt weather.ico weather.png static
+
+          if git diff --cached --quiet; then
+            echo "Production repo already has this React build."
+            exit 0
+          fi
+
+          short_sha="$(printf '%s' "${GITHUB_SHA}" | cut -c1-7)"
+          git commit -m "Sync React build from Vaervakt-react ${short_sha}"
+          git push origin main
