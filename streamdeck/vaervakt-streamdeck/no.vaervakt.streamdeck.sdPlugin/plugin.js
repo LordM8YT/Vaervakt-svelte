@@ -2,6 +2,8 @@ let websocket = null;
 let pluginUUID = null;
 
 const REQUEST_TIMEOUT_MS = 10 * 1000;
+const MIN_VALID_BATH_TEMPERATURE = 1;
+const MAX_VALID_BATH_TEMPERATURE = 40;
 
 const ACTIONS = {
   weather: "no.vaervakt.streamdeck.now",
@@ -187,24 +189,20 @@ async function refreshContext(context) {
     }
 
     const weather = await fetchWeather(settings);
-    const nearestBath = selectBathLocation(weather.bathing, settings) || weather.bathing?.nearby?.[0];
-    const bathTemperature = nearestBath?.temperature ?? weather.bathing?.waterTemperature;
-    const bathPlace = nearestBath?.name ?? weather.bathing?.waterTemperatureLocation;
-    const bathDistanceKm = nearestBath?.distanceKm ?? weather.bathing?.waterTemperatureDistanceKm;
-    const bathTime = nearestBath?.time ?? weather.bathing?.waterTemperatureTime;
+    const bathReading = resolveBathReading(weather.bathing, settings);
     if (!isCurrentRequest(context, requestId)) return;
 
-    const title = mode === "weather" ? formatTemperature(weather.current.temperature) : formatTemperature(bathTemperature);
+    const title = mode === "weather" ? formatTemperature(weather.current.temperature) : formatTemperature(bathReading.temperature);
     const image = makeKeyImage({
       mode,
       placeName: settings.placeName,
       temperature: weather.current.temperature,
       condition: weather.current.condition,
       icon: weather.current.icon,
-      bathTemperature,
-      bathPlace,
-      bathDistanceKm,
-      bathTime,
+      bathTemperature: bathReading.temperature,
+      bathPlace: bathReading.name,
+      bathDistanceKm: bathReading.distanceKm,
+      bathTime: bathReading.time,
     });
 
     state.lastGood = { title, image };
@@ -300,6 +298,46 @@ function selectBathLocation(bathing, settings) {
       && String(place.name || "").toLowerCase() === settings.bathLocationName.toLowerCase();
     return idMatches || nameMatches;
   }) || null;
+}
+
+function resolveBathReading(bathing, settings) {
+  const nearby = Array.isArray(bathing?.nearby) ? bathing.nearby : [];
+  const selected = selectBathLocation(bathing, settings);
+  const fallback = nearby[0] || {
+    temperature: bathing?.waterTemperature,
+    name: bathing?.waterTemperatureLocation,
+    distanceKm: bathing?.waterTemperatureDistanceKm,
+    time: bathing?.waterTemperatureTime,
+  };
+  const source = selected || fallback || {};
+
+  return {
+    temperature: normalizeBathTemperature(source.temperature ?? bathing?.waterTemperature),
+    name: firstText(source.name, settings.bathLocationName, bathing?.waterTemperatureLocation, "Ingen måling"),
+    distanceKm: normalizeDistance(source.distanceKm ?? bathing?.waterTemperatureDistanceKm),
+    time: source.time ?? bathing?.waterTemperatureTime ?? "",
+  };
+}
+
+function normalizeBathTemperature(value) {
+  const temperature = Number(value);
+  if (!Number.isFinite(temperature) || temperature < MIN_VALID_BATH_TEMPERATURE || temperature > MAX_VALID_BATH_TEMPERATURE) {
+    return null;
+  }
+  return temperature;
+}
+
+function normalizeDistance(value) {
+  const distance = Number(value);
+  return Number.isFinite(distance) && distance >= 0 ? distance : null;
+}
+
+function firstText(...values) {
+  for (const value of values) {
+    const textValue = String(value || "").trim();
+    if (textValue) return textValue;
+  }
+  return "";
 }
 
 async function fetchWeather(settings) {
@@ -624,8 +662,11 @@ function formatDistance(value) {
   if (!Number.isFinite(distance)) {
     return "";
   }
+  if (distance <= 0.05) {
+    return "VED DEG";
+  }
   if (distance < 1) {
-    return `${Math.max(1, Math.round(distance * 1000))} M`;
+    return `${Math.max(50, Math.round((distance * 1000) / 50) * 50)} M`;
   }
   return `${distance.toFixed(1).replace(".", ",")} KM`;
 }

@@ -12,7 +12,12 @@
   <path d="M144 144h-25l25-25Z" fill="#2563eb" opacity=".78"/>
   <text x="16" y="31" fill="#7dd3fc" font-family="Arial, sans-serif" font-size="10.5" font-weight="900">BADETEMP</text>
   <text x="15" y="72" fill="#fff" font-family="Arial, sans-serif" font-size="56" font-weight="900">--</text>
-  <text x="16" y="97" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="12.5" font-weight="900">BADEPLASS</text>
-  <text x="16" y="117" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="9.5" font-weight="800">YR</text>
-  <text x="113" y="116" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif" font-size="32">🌊</text>
+  <text x="16" y="97" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="12.5" font-weight="900">VELG STED</text>
+  <text x="16" y="117" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="9.5" font-weight="800">YR - OPPDATERER</text>
+  <g transform="translate(95 93)">
+    <circle cx="18" cy="18" r="18" fill="#075985" opacity=".92"/>
+    <circle cx="26" cy="10" r="11" fill="#38bdf8" opacity=".22"/>
+    <path d="M7 22c4.2-4.1 8.4-4.1 12.6 0 3.2 3.2 6.4 3.2 9.6 0" fill="none" stroke="#e0f2fe" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M7 29c4.2-4.1 8.4-4.1 12.6 0 3.2 3.2 6.4 3.2 9.6 0" fill="none" stroke="#38bdf8" stroke-width="3.2" stroke-linecap="round"/>
+  </g>
 </svg>
