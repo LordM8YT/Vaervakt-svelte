@@ -21,12 +21,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check sync token
+        id: sync-token
+        env:
+          VAERVAKT_SYNC_TOKEN: ${{ secrets.VAERVAKT_SYNC_TOKEN }}
+        run: |
+          set -eu
+          if [ -z "${VAERVAKT_SYNC_TOKEN:-}" ]; then
+            echo "available=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice::VAERVAKT_SYNC_TOKEN is missing. Add it in Vaervakt-react to enable automatic production sync."
+          else
+            echo "available=true" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Check out React source
+        if: steps.sync-token.outputs.available == 'true'
         uses: actions/checkout@v6
         with:
           path: source
 
       - name: Set up Node.js
+        if: steps.sync-token.outputs.available == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -34,6 +49,7 @@ jobs:
           cache-dependency-path: source/package-lock.json
 
       - name: Build React app
+        if: steps.sync-token.outputs.available == 'true'
         working-directory: source
         env:
           CI: false
@@ -41,17 +57,8 @@ jobs:
           npm ci
           npm run build
 
-      - name: Check sync token
-        env:
-          VAERVAKT_SYNC_TOKEN: ${{ secrets.VAERVAKT_SYNC_TOKEN }}
-        run: |
-          set -eu
-          if [ -z "${VAERVAKT_SYNC_TOKEN:-}" ]; then
-            echo "::error::Missing VAERVAKT_SYNC_TOKEN secret in Vaervakt-react."
-            exit 1
-          fi
-
       - name: Check out production repo
+        if: steps.sync-token.outputs.available == 'true'
         uses: actions/checkout@v6
         with:
           repository: LordM8YT/Vaervakt.no
@@ -59,6 +66,7 @@ jobs:
           path: production
 
       - name: Copy build into production repo
+        if: steps.sync-token.outputs.available == 'true'
         env:
           BUILD_DIR: ${{ github.workspace }}/source/build
           PROD_DIR: ${{ github.workspace }}/production
@@ -90,6 +98,7 @@ jobs:
           NODE
 
       - name: Commit production build
+        if: steps.sync-token.outputs.available == 'true'
         working-directory: production
         run: |
           set -eu
