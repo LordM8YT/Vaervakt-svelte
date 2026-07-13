@@ -1,6 +1,7 @@
 const MET_API_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact";
 const NOMINATIM_API_URL = "https://nominatim.openstreetmap.org/search";
 const NOMINATIM_REVERSE_API_URL = "https://nominatim.openstreetmap.org/reverse";
+const VAERVAKT_API_BASE = (process.env.REACT_APP_VAERVAKT_API_BASE || "").replace(/\/$/, "");
 
 function formatDateTime(isoString) {
   return isoString.replace("T", " ").substring(0, 19);
@@ -149,11 +150,29 @@ export async function fetchCities(input) {
 }
 
 export async function reverseGeocode(lat, lon) {
+  const vaervaktParams = new URLSearchParams({ lat, lon });
+
+  try {
+    const response = await fetch(
+      `${VAERVAKT_API_BASE}/api/geocode.php?${vaervaktParams.toString()}`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (response.ok) {
+      const payload = await response.json();
+      if (payload?.result?.name) {
+        return payload.result.name;
+      }
+    }
+  } catch (error) {
+    // Direct Nominatim lookup below keeps location usable if the backend is unavailable.
+  }
+
   const params = new URLSearchParams({
     lat,
     lon,
     format: "jsonv2",
     addressdetails: "1",
+    zoom: "14",
     "accept-language": "nb",
   });
 
@@ -166,9 +185,10 @@ export async function reverseGeocode(lat, lon) {
   const place = await response.json();
   const address = place.address || {};
   const name =
-    address.neighbourhood ||
+    address.quarter ||
     address.suburb ||
     address.city_district ||
+    address.neighbourhood ||
     address.city ||
     address.town ||
     address.village ||

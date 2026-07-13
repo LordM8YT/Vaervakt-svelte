@@ -39,21 +39,49 @@ function getTabFromPath(pathname = window.location.pathname) {
   return APP_TABS.find((tab) => tab.path === normalizedPath)?.value || "weather";
 }
 
-function requestBestPosition({
-  timeout = 10000,
-} = {}) {
+function requestPosition(options) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error("unsupported"));
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      resolve,
-      reject,
-      { enableHighAccuracy: true, timeout, maximumAge: 60000 }
-    );
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
   });
+}
+
+async function requestBestPosition() {
+  let coarsePosition = null;
+  let coarseError = null;
+
+  try {
+    coarsePosition = await requestPosition({
+      enableHighAccuracy: false,
+      timeout: 8000,
+      maximumAge: 300000,
+    });
+
+    const accuracy = Number(coarsePosition.coords?.accuracy);
+    if (!Number.isFinite(accuracy) || accuracy <= 1500) {
+      return coarsePosition;
+    }
+  } catch (error) {
+    if (error?.code === 1 || error?.message === "unsupported") {
+      throw error;
+    }
+    coarseError = error;
+  }
+
+  try {
+    return await requestPosition({
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0,
+    });
+  } catch (error) {
+    if (coarsePosition) return coarsePosition;
+    throw error || coarseError;
+  }
 }
 
 function getPositionStatusMessage(error) {
@@ -62,7 +90,7 @@ function getPositionStatusMessage(error) {
   }
 
   if (error?.code === 1) {
-    return "Posisjon er avslått. Søk etter sted i stedet.";
+    return "Posisjon er avslått. Tillat posisjon for Værvakt i nettleserinnstillingene og prøv igjen.";
   }
 
   if (error?.code === 2) {
@@ -291,6 +319,11 @@ function App() {
   const usePositionHandler = async () => {
     if (isLocating) return;
 
+    if (!window.isSecureContext) {
+      setLocationStatus("Posisjon krever en sikker HTTPS-tilkobling.");
+      return;
+    }
+
     if (!navigator.geolocation) {
       setLocationStatus("Nettleseren støtter ikke posisjon.");
       return;
@@ -299,11 +332,15 @@ function App() {
     setIsLocating(true);
     setLocationStatus("");
     try {
-      const position = await requestBestPosition({
-        timeout: 10000,
-      });
-      const latitude = position.coords.latitude.toFixed(7);
-      const longitude = position.coords.longitude.toFixed(7);
+      const position = await requestBestPosition();
+      const latitudeValue = Number(position.coords?.latitude);
+      const longitudeValue = Number(position.coords?.longitude);
+      if (!Number.isFinite(latitudeValue) || !Number.isFinite(longitudeValue)) {
+        throw new Error("invalid-position");
+      }
+
+      const latitude = latitudeValue.toFixed(7);
+      const longitude = longitudeValue.toFixed(7);
       const label = await reverseGeocode(latitude, longitude).catch(
         () => "Din posisjon"
       );
@@ -315,7 +352,8 @@ function App() {
         },
         true
       );
-      setLocationStatus("");
+      window.navigator.vibrate?.(8);
+      setLocationStatus(`Bruker ${label}.`);
     } catch (error) {
       setLocationStatus(getPositionStatusMessage(error));
     } finally {
