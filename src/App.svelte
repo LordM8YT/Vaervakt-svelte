@@ -8,6 +8,7 @@
     MapPin,
     Moon,
     RefreshCw,
+    Search as SearchIcon,
     ShieldCheck,
     Sun,
     Trash2,
@@ -240,9 +241,9 @@
         ? ` (omtrent ${formatAccuracy(accuracy)})`
         : "";
       if (Number.isFinite(accuracy) && accuracy >= 10000) {
-        return `Nettleseren ga bare en grov posisjon${accuracyText}. Slå på «Presis posisjon» for nettleseren og enhetens posisjonstjeneste, vent litt og prøv igjen. Ellers kan du søke etter stedet.`;
+        return `Nettleseren ga bare en grov posisjon${accuracyText}, så bydelen kan ikke bestemmes sikkert. Slå på «Presis posisjon» og prøv igjen, eller velg riktig bydel i søket.`;
       }
-      return `Posisjonen ble for unøyaktig${accuracyText}. Slå på presis posisjon/GPS, vent litt og prøv igjen, eller søk etter stedet.`;
+      return `Posisjonen ble for unøyaktig${accuracyText} til å bestemme bydelen sikkert. Slå på presis posisjon/GPS, eller velg bydel i søket.`;
     }
     return "Kunne ikke hente posisjon. Søk etter sted i stedet.";
   }
@@ -263,6 +264,7 @@
   let isLocating = false;
   let hasError = false;
   let locationStatus = "";
+  let needsManualPlaceSelection = false;
   let communityRefreshKey = 0;
   let selectedLocation = initialLocationCache?.location || DEFAULT_LOCATION;
   let hasCachedLocation = Boolean(initialLocationCache);
@@ -275,6 +277,7 @@
   let isRefreshing = false;
   let touchStartY = 0;
   let isTrackingPull = false;
+  let placeSearch;
 
   $: visibleTabs = APP_TABS.filter(
     (tab) => tab.value !== "bath" || isBathSeason() || activeTab === "bath"
@@ -332,6 +335,7 @@
         city: enteredData.label,
         list: getWeekForecastWeather(weekResponse, ALL_DESCRIPTIONS),
       };
+      needsManualPlaceSelection = false;
     } catch {
       hasError = true;
     } finally {
@@ -371,6 +375,10 @@
     locationStatus = "Posisjonscachen er slettet. Valgt sted brukes bare i denne åpne fanen.";
   }
 
+  function focusPlaceSearch() {
+    placeSearch?.focus?.();
+  }
+
   function changeTab(tabValue) {
     const tab = APP_TABS.find((item) => item.value === tabValue);
     if (!tab) return;
@@ -395,6 +403,7 @@
 
     isLocating = true;
     locationStatus = "";
+    needsManualPlaceSelection = false;
     try {
       const position = await requestBestPosition();
       const latitude = position.coords.latitude.toFixed(7);
@@ -410,6 +419,7 @@
       locationStatus = `Bruker ${label} · nøyaktighet ca. ${formatAccuracy(accuracy)}. Stedet mellomlagres i denne fanen i inntil 30 minutter.`;
     } catch (error) {
       locationStatus = getPositionStatusMessage(error);
+      needsManualPlaceSelection = error?.message === "inaccurate";
     } finally {
       isLocating = false;
     }
@@ -555,7 +565,7 @@
     </div>
   </header>
 
-  <Search onSelect={searchChangeHandler} />
+  <Search bind:this={placeSearch} onSelect={searchChangeHandler} />
 
   <div class="selected-location" aria-live="polite">
     <div class="selected-location-copy">
@@ -583,6 +593,12 @@
     <div class="location-status" role="status">
       <TriangleAlert size={17} />
       <span>{locationStatus}</span>
+      {#if needsManualPlaceSelection}
+        <button class="manual-place-button" type="button" on:click={focusPlaceSearch}>
+          <SearchIcon size={14} aria-hidden="true" />
+          Velg bydel
+        </button>
+      {/if}
     </div>
   {/if}
 

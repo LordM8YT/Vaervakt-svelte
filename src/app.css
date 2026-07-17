@@ -294,6 +294,7 @@ canvas {
 .location-status {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
   width: fit-content;
@@ -306,6 +307,27 @@ canvas {
   background: rgba(251, 191, 36, 0.1);
   font-size: 0.78rem;
   font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.manual-place-button {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 5px;
+  padding: 5px 9px;
+  color: #082f49;
+  border: 0;
+  border-radius: 999px;
+  background: #fde68a;
+  font-size: 0.68rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.manual-place-button:hover {
+  background: #fef3c7;
 }
 
 .selected-location {

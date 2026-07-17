@@ -11,6 +11,12 @@
   let activeIndex = -1;
   let requestId = 0;
   let debounceTimer;
+  let searchInput;
+
+  export function focus() {
+    searchInput?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => searchInput?.focus(), 180);
+  }
 
   async function runSearch(value) {
     const currentRequest = ++requestId;
@@ -82,10 +88,11 @@
 <div class="search-shell">
   <Search size={19} strokeWidth={2} aria-hidden="true" />
   <input
+    bind:this={searchInput}
     type="search"
     role="combobox"
     value={query}
-    placeholder="Søk sted, f.eks. Bergen eller Bystranda"
+    placeholder="Søk sted eller bydel, f.eks. Grünerløkka"
     aria-label="Søk etter sted"
     aria-expanded={isOpen}
     aria-controls="place-results"
