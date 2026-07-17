@@ -1,7 +1,6 @@
-# Værvakt React
+# Værvakt Svelte
 
-Ny React-basert base for Værvakt.no, bygget videre fra en fork av
-`vardhan-venkata/react-weather-forecast`.
+Frontend for Værvakt.no, bygget med Svelte 5, Vite og Lucide-ikoner.
 
 ## Hva denne basen gjør nå
 
@@ -10,13 +9,15 @@ Ny React-basert base for Værvakt.no, bygget videre fra en fork av
 - Krever ingen OpenWeather- eller RapidAPI-nøkler.
 - Starter med Kristiansand som standardvisning.
 - Viser vær nå, time-for-time og de neste dagene.
+- Har lokale værrapporter, badetemperatur og Værglimt.
+- Bruker `@lucide/svelte` for vær- og grensesnittikoner.
 
 ## Repo-flyt
 
-Dette repoet er utviklingsrepoet for React/UI. Produksjonsrepoet er
+Dette repoet er utviklingsrepoet for Svelte-grensesnittet. Produksjonsrepoet er
 `LordM8YT/Vaervakt.no`, og det er det eneste repoet som deployer til Webhuset.
 
-Når React-kode pushes til `main`, bygger GitHub Actions appen og sender ferdig
+Når Svelte-kode pushes til `main`, bygger GitHub Actions appen og sender ferdig
 build videre til `LordM8YT/Vaervakt.no`. Produksjonsrepoet deployer deretter til
 Webhuset med den eksisterende workflowen.
 
@@ -35,14 +36,20 @@ npm install
 npm start
 ```
 
+Vite viser deretter lokal adresse i terminalen.
+
 ## Bygg
 
 ```powershell
+npm run check
 npm run build
 ```
 
-## Videre arbeid
+Vite er konfigurert til å skrive produksjonsbygget til `build/`, med JavaScript
+og CSS under `build/static/`, slik at eksisterende produksjonssynk fungerer.
 
-- Lage ny Værvakt-identitet og mobil-first UI.
-- Koble inn egne rapporter, badetemperatur og Værhub.
-- Legge inn PWA/service worker når ny struktur er stabil.
+Valgfri API-base settes med:
+
+```text
+VITE_VAERVAKT_API_BASE=https://eksempel.no
+```

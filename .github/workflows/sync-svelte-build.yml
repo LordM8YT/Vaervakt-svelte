@@ -1,4 +1,4 @@
-name: Sync React build to production repo
+name: Sync Svelte build to production repo
 
 on:
   push:
@@ -7,12 +7,15 @@ on:
     paths:
       - "public/**"
       - "src/**"
+      - "index.html"
       - "package.json"
       - "package-lock.json"
+      - "svelte.config.js"
+      - "vite.config.js"
   workflow_dispatch:
 
 concurrency:
-  group: sync-react-build-to-production
+  group: sync-svelte-build-to-production
   cancel-in-progress: true
 
 jobs:
@@ -34,7 +37,7 @@ jobs:
             echo "available=true" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Check out React source
+      - name: Check out Svelte source
         if: steps.sync-token.outputs.available == 'true'
         uses: actions/checkout@v6
         with:
@@ -48,13 +51,14 @@ jobs:
           cache: npm
           cache-dependency-path: source/package-lock.json
 
-      - name: Build React app
+      - name: Check and build Svelte app
         if: steps.sync-token.outputs.available == 'true'
         working-directory: source
         env:
           CI: false
         run: |
           npm ci
+          npm run check
           npm run build
 
       - name: Check out production repo
@@ -76,7 +80,7 @@ jobs:
           rm -rf "${PROD_DIR}/static"
           cp -a "${BUILD_DIR}/static" "${PROD_DIR}/static"
 
-          for file in asset-manifest.json index.html manifest.json robots.txt weather.ico weather.png; do
+          for file in asset-manifest.json index.html manifest.json robots.txt service-worker.js weather.ico weather.png; do
             if [ -f "${BUILD_DIR}/${file}" ]; then
               cp -f "${BUILD_DIR}/${file}" "${PROD_DIR}/${file}"
             fi
@@ -91,10 +95,18 @@ jobs:
           let html = fs.readFileSync(indexPath, "utf8");
 
           if (!html.includes("/assets/js/live-enhancements.js")) {
-            html = html.replace(/(<script defer="defer" src="\/static\/js\/)/, `${enhancement}$1`);
+            html = html.replace(
+              /(<script type="module"[^>]*src="\/static\/js\/)/,
+              `${enhancement}$1`,
+            );
           }
 
           fs.writeFileSync(indexPath, html);
+          for (const route of ["lokalt", "bad", "glimt"]) {
+            const routeDirectory = path.join(process.env.PROD_DIR, route);
+            fs.mkdirSync(routeDirectory, { recursive: true });
+            fs.writeFileSync(path.join(routeDirectory, "index.html"), html);
+          }
           NODE
 
       - name: Commit production build
@@ -106,13 +118,14 @@ jobs:
           git config user.name "Vaervakt Build Bot"
           git config user.email "actions@github.com"
 
-          git add asset-manifest.json index.html manifest.json robots.txt weather.ico weather.png static
+          git add asset-manifest.json index.html manifest.json robots.txt service-worker.js weather.ico weather.png static
+          git add lokalt/index.html bad/index.html glimt/index.html
 
           if git diff --cached --quiet; then
-            echo "Production repo already has this React build."
+            echo "Production repo already has this Svelte build."
             exit 0
           fi
 
           short_sha="$(printf '%s' "${GITHUB_SHA}" | cut -c1-7)"
-          git commit -m "Sync React build from Vaervakt-react ${short_sha}"
+          git commit -m "Sync Svelte build from Vaervakt-react ${short_sha}"
           git push origin main

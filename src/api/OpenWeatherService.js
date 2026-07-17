@@ -1,7 +1,7 @@
 const MET_API_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact";
 const NOMINATIM_API_URL = "https://nominatim.openstreetmap.org/search";
 const NOMINATIM_REVERSE_API_URL = "https://nominatim.openstreetmap.org/reverse";
-const VAERVAKT_API_BASE = (process.env.REACT_APP_VAERVAKT_API_BASE || "").replace(/\/$/, "");
+const VAERVAKT_API_BASE = (import.meta.env.VITE_VAERVAKT_API_BASE || "").replace(/\/$/, "");
 
 function formatDateTime(isoString) {
   return isoString.replace("T", " ").substring(0, 19);
@@ -150,21 +150,23 @@ export async function fetchCities(input) {
 }
 
 export async function reverseGeocode(lat, lon) {
-  const vaervaktParams = new URLSearchParams({ lat, lon });
+  const vaervaktParams = new URLSearchParams({ lat, lon, v: "2" });
 
   try {
     const response = await fetch(
       `${VAERVAKT_API_BASE}/api/geocode.php?${vaervaktParams.toString()}`,
       { headers: { Accept: "application/json" } }
     );
-    if (response.ok) {
-      const payload = await response.json();
-      if (payload?.result?.name) {
-        return payload.result.name;
-      }
+    if (!response.ok) {
+      throw new Error("Kartverket-oppslaget feilet.");
+    }
+
+    const payload = await response.json();
+    if (payload?.result?.name) {
+      return payload.result.name;
     }
   } catch (error) {
-    // Direct Nominatim lookup below keeps location usable if the backend is unavailable.
+    // Fall back to Nominatim if the Værvakt/Kartverket endpoint is unavailable.
   }
 
   const params = new URLSearchParams({

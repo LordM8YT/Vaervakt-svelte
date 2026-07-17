@@ -1,4 +1,4 @@
-const API_BASE = process.env.REACT_APP_VAERVAKT_API_BASE || "";
+const API_BASE = (import.meta.env.VITE_VAERVAKT_API_BASE || "").replace(/\/$/, "");
 
 function buildUrl(path, params = {}) {
   const url = new URL(path, window.location.origin);
@@ -41,13 +41,17 @@ async function requestJson(path, options = {}) {
   return payload;
 }
 
-export function fetchReports({ lat, lon, name }, limit = 8) {
+export function fetchReports(
+  { lat, lon, name },
+  { limit = 12, maxAgeHours = 24 } = {}
+) {
   const url = buildUrl("/api/reports.php", {
     limit,
     lat,
     lon,
     radiusKm: 35,
     location: name,
+    maxAgeHours,
   });
 
   return requestJson(url);

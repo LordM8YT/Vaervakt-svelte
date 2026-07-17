@@ -1,0 +1,395 @@
+<script>
+  import { onMount } from "svelte";
+  import {
+    CloudSun,
+    Code2,
+    HeartHandshake,
+    LocateFixed,
+    MapPin,
+    RefreshCw,
+    TriangleAlert,
+    Waves,
+    Zap,
+  } from "@lucide/svelte";
+  import Logo from "./assets/logo3.png";
+  import { fetchWeatherData, reverseGeocode } from "./api/OpenWeatherService";
+  import { trackVisit } from "./api/VaervaktApi";
+  import { ALL_DESCRIPTIONS } from "./utilities/DateConstants";
+  import { getTodayForecastWeather, getWeekForecastWeather } from "./utilities/DataUtils";
+  import { getLocalDatetime } from "./utilities/DatetimeUtils";
+  import CommunityFeatures from "./components/svelte/CommunityFeatures.svelte";
+  import Search from "./components/svelte/Search.svelte";
+  import TodayWeather from "./components/svelte/TodayWeather.svelte";
+  import WeeklyForecast from "./components/svelte/WeeklyForecast.svelte";
+
+  const APP_TABS = [
+    { value: "weather", label: "Vær", path: "/" },
+    { value: "local", label: "Lokalt", path: "/lokalt/" },
+    { value: "bath", label: "Bad", path: "/bad/" },
+    { value: "glimpse", label: "Glimt", path: "/glimt/" },
+  ];
+  const VIPPS_URL = "https://betal.vipps.no/opy01u";
+  const PULL_TRIGGER_DISTANCE = 74;
+  const PULL_MAX_DISTANCE = 96;
+  const LOCATION_KEY = "vaervakt_selected_location";
+  const DEFAULT_LOCATION = {
+    name: "Kristiansand, NO",
+    lat: 58.1467,
+    lon: 7.9956,
+    source: "default",
+  };
+
+  function getStoredLocation() {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(LOCATION_KEY));
+      const lat = Number(stored?.lat);
+      const lon = Number(stored?.lon);
+      if (
+        !stored?.name ||
+        stored?.lat === "" ||
+        stored?.lon === "" ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lon) ||
+        lat < -90 ||
+        lat > 90 ||
+        lon < -180 ||
+        lon > 180
+      ) {
+        return DEFAULT_LOCATION;
+      }
+      return { name: stored.name, lat, lon, source: "stored" };
+    } catch {
+      return DEFAULT_LOCATION;
+    }
+  }
+
+  function storeLocation(location) {
+    try {
+      window.localStorage.setItem(
+        LOCATION_KEY,
+        JSON.stringify({ name: location.name, lat: location.lat, lon: location.lon })
+      );
+    } catch {
+      // Nettsiden fungerer også uten lokal lagring.
+    }
+  }
+
+  function isBathSeason(date = new Date()) {
+    const month = date.getMonth();
+    return month >= 4 && month <= 8;
+  }
+
+  function getTabFromPath(pathname = window.location.pathname) {
+    const normalizedPath = pathname.endsWith("/") ? pathname : `${pathname}/`;
+    return APP_TABS.find((tab) => tab.path === normalizedPath)?.value || "weather";
+  }
+
+  function requestBestPosition({ timeout = 10000 } = {}) {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("unsupported"));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout,
+        maximumAge: 0,
+      });
+    });
+  }
+
+  function getPositionStatusMessage(error) {
+    if (error?.message === "unsupported") return "Nettleseren støtter ikke posisjon.";
+    if (error?.code === 1) return "Posisjon er avslått. Søk etter sted i stedet.";
+    if (error?.code === 2) return "Fant ikke posisjonen akkurat nå. Prøv igjen eller søk.";
+    if (error?.code === 3 || error?.message === "timeout") {
+      return "Posisjon brukte for lang tid. Prøv igjen eller søk.";
+    }
+    return "Kunne ikke hente posisjon. Søk etter sted i stedet.";
+  }
+
+  let activeTab = getTabFromPath();
+  let todayWeather = null;
+  let todayForecast = [];
+  let weekForecast = null;
+  let isLoading = true;
+  let isLocating = false;
+  let hasError = false;
+  let locationStatus = "";
+  let communityRefreshKey = 0;
+  let selectedLocation = getStoredLocation();
+  let localDatetime = getLocalDatetime();
+  let pullDistance = 0;
+  let isRefreshing = false;
+  let touchStartY = 0;
+  let isTrackingPull = false;
+
+  $: visibleTabs = APP_TABS.filter(
+    (tab) => tab.value !== "bath" || isBathSeason() || activeTab === "bath"
+  );
+  $: pullProgress = Math.min(1, pullDistance / PULL_TRIGGER_DISTANCE);
+  $: communityHint = isBathSeason()
+    ? "lokale rapporter, badetemperatur og Værglimt"
+    : "lokale rapporter og Værglimt";
+
+  async function searchChangeHandler(enteredData, showLoading = true, source = "search") {
+    if (!enteredData?.value) return;
+    const [latitude, longitude] = enteredData.value.split(" ");
+    const nextLocation = {
+      name: enteredData.label,
+      lat: Number(latitude),
+      lon: Number(longitude),
+      source,
+    };
+
+    hasError = false;
+    if (showLoading) isLoading = true;
+    const now = Math.floor(Date.now() / 1000);
+
+    try {
+      const [todayResponse, weekResponse] = await fetchWeatherData(latitude, longitude);
+      todayForecast = getTodayForecastWeather(weekResponse, now);
+      todayWeather = { city: enteredData.label, ...todayResponse };
+      selectedLocation = nextLocation;
+      storeLocation(nextLocation);
+      weekForecast = {
+        city: enteredData.label,
+        list: getWeekForecastWeather(weekResponse, ALL_DESCRIPTIONS),
+      };
+    } catch {
+      hasError = true;
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  function changeTab(tabValue) {
+    const tab = APP_TABS.find((item) => item.value === tabValue);
+    if (!tab) return;
+    window.navigator.vibrate?.(8);
+    activeTab = tab.value;
+    if (window.location.pathname !== tab.path) {
+      window.history.pushState({ tab: tab.value }, "", tab.path);
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function usePositionHandler() {
+    if (isLocating) return;
+    if (!navigator.geolocation) {
+      locationStatus = "Nettleseren støtter ikke posisjon.";
+      return;
+    }
+
+    isLocating = true;
+    locationStatus = "";
+    try {
+      const position = await requestBestPosition();
+      const latitude = position.coords.latitude.toFixed(7);
+      const longitude = position.coords.longitude.toFixed(7);
+      const label = await reverseGeocode(latitude, longitude).catch(() => "Din posisjon");
+      await searchChangeHandler({ value: `${latitude} ${longitude}`, label }, true, "gps");
+    } catch (error) {
+      locationStatus = getPositionStatusMessage(error);
+    } finally {
+      isLocating = false;
+    }
+  }
+
+  async function refreshActiveTab() {
+    if (isLoading) return;
+    if (selectedLocation?.lat && selectedLocation?.lon) {
+      await searchChangeHandler(
+        {
+          value: `${selectedLocation.lat} ${selectedLocation.lon}`,
+          label: selectedLocation.name,
+        },
+        true,
+        selectedLocation.source || "refresh"
+      );
+    }
+    communityRefreshKey += 1;
+  }
+
+  onMount(() => {
+    trackVisit();
+    searchChangeHandler(
+      {
+        value: `${selectedLocation.lat} ${selectedLocation.lon}`,
+        label: selectedLocation.name,
+      },
+      false,
+      selectedLocation.source || "default"
+    );
+
+    const dateTimer = window.setInterval(() => (localDatetime = getLocalDatetime()), 30000);
+    const handlePopState = () => (activeTab = getTabFromPath());
+    const handleTouchStart = (event) => {
+      if (isLocating || isRefreshing || window.scrollY > 2 || event.touches.length !== 1) return;
+      touchStartY = event.touches[0].clientY;
+      isTrackingPull = true;
+    };
+    const handleTouchMove = (event) => {
+      if (!isTrackingPull || event.touches.length !== 1) return;
+      const dragDistance = event.touches[0].clientY - touchStartY;
+      if (dragDistance <= 0 || window.scrollY > 2) {
+        pullDistance = 0;
+        return;
+      }
+      pullDistance = Math.min(PULL_MAX_DISTANCE, dragDistance * 0.56);
+      if (event.cancelable && pullDistance > 8) event.preventDefault();
+    };
+    const handleTouchEnd = async () => {
+      if (!isTrackingPull) return;
+      isTrackingPull = false;
+      if (pullDistance < PULL_TRIGGER_DISTANCE) {
+        pullDistance = 0;
+        return;
+      }
+      pullDistance = PULL_TRIGGER_DISTANCE;
+      isRefreshing = true;
+      try {
+        window.navigator.vibrate?.(8);
+        await refreshActiveTab();
+      } finally {
+        isRefreshing = false;
+        pullDistance = 0;
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
+
+    return () => {
+      window.clearInterval(dateTimer);
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+      window.removeEventListener("touchcancel", handleTouchEnd);
+    };
+  });
+</script>
+
+<svelte:head>
+  <meta property="og:title" content="Værvakt.no" />
+  <meta
+    property="og:description"
+    content="Lokalt vær, værrapporter, badetemperatur og værglimt."
+  />
+</svelte:head>
+
+<div
+  class="pull-indicator"
+  class:visible={isRefreshing || pullDistance > 6}
+  style={`--pull-offset: ${isRefreshing ? 0 : Math.max(-18, pullDistance - 56)}px; --pull-progress: ${pullProgress * 260}deg`}
+  aria-hidden="true"
+>
+  <span class:spin={isRefreshing}></span>
+  {isRefreshing ? "Oppdaterer…" : pullProgress >= 1 ? "Slipp for å oppdatere" : "Dra for å oppdatere"}
+</div>
+
+<div class="app-shell">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Værvakt.no">
+      <img src={Logo} alt="Værvakt.no" />
+    </a>
+    <div class="topbar-actions">
+      <a class="support-mini" href={VIPPS_URL} target="_blank" rel="noopener noreferrer">
+        <HeartHandshake size={15} /> Støtt
+      </a>
+      <button class="location-button" type="button" on:click={usePositionHandler} disabled={isLocating}>
+        <LocateFixed size={16} class={isLocating ? "locating" : ""} />
+        <span>{isLocating ? "Finner…" : "Bruk posisjon"}</span>
+      </button>
+      <time class="current-time">{localDatetime}</time>
+      <a
+        class="github-link"
+        href="https://github.com/LordM8YT/Vaervakt-react"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Værvakt på GitHub"
+      >
+        <Code2 size={22} />
+      </a>
+    </div>
+  </header>
+
+  {#if activeTab !== "glimpse"}
+    <Search onSelect={searchChangeHandler} />
+  {/if}
+
+  {#if locationStatus}
+    <div class="location-status" role="status">
+      <TriangleAlert size={17} />
+      <span>{locationStatus}</span>
+    </div>
+  {/if}
+
+  <main>
+    {#if isLoading}
+      <div class="loading-state">
+        <RefreshCw class="spin" size={34} />
+        <strong>Laster værdata…</strong>
+      </div>
+    {:else if hasError}
+      <div class="error-state">
+        <TriangleAlert size={28} />
+        <div>
+          <strong>Noe gikk galt</strong>
+          <span>Værdataene kunne ikke hentes. Prøv igjen.</span>
+        </div>
+        <button class="secondary-button" type="button" on:click={refreshActiveTab}>Prøv igjen</button>
+      </div>
+    {:else if todayWeather && weekForecast}
+      {#if activeTab === "weather"}
+        <div class="forecast-layout">
+          <TodayWeather data={todayWeather} forecastList={todayForecast} />
+          <WeeklyForecast data={weekForecast} />
+        </div>
+        <div class="tab-hint">Bytt fane nederst for {communityHint}.</div>
+      {:else}
+        <CommunityFeatures
+          {selectedLocation}
+          weather={todayWeather}
+          {activeTab}
+          refreshKey={communityRefreshKey}
+        />
+      {/if}
+    {:else}
+      <div class="loading-state">
+        <CloudSun size={58} />
+        <strong>Søk etter et sted for å se været.</strong>
+      </div>
+    {/if}
+  </main>
+
+  <nav
+    class="bottom-nav"
+    style={`--tab-count: ${visibleTabs.length}`}
+    aria-label="Hovedmeny"
+  >
+    {#each visibleTabs as tab}
+      <button
+        type="button"
+        class:active={activeTab === tab.value}
+        aria-pressed={activeTab === tab.value}
+        on:click={() => changeTab(tab.value)}
+      >
+        {#if tab.value === "weather"}
+          <CloudSun size={18} />
+        {:else if tab.value === "local"}
+          <MapPin size={18} />
+        {:else if tab.value === "bath"}
+          <Waves size={18} />
+        {:else}
+          <Zap size={18} />
+        {/if}
+        <span>{tab.label}</span>
+      </button>
+    {/each}
+  </nav>
+</div>
