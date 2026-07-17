@@ -34,7 +34,9 @@
   const PULL_TRIGGER_DISTANCE = 74;
   const PULL_MAX_DISTANCE = 96;
   const TARGET_ACCURACY_METERS = 150;
-  const MAX_ACCEPTABLE_ACCURACY_METERS = 5000;
+  const MAX_ACCEPTABLE_ACCURACY_METERS = 3000;
+  const POSITION_ACQUISITION_TIMEOUT_MS = 26000;
+  const BROWSER_POSITION_MAX_AGE_MS = 10 * 60 * 1000;
   const THEME_STORAGE_KEY = "vaervakt_theme";
   const LOCATION_CACHE_KEY = "vaervakt_location_session";
   const LOCATION_CACHE_TTL_MS = 30 * 60 * 1000;
@@ -155,9 +157,10 @@
   }
 
   function requestBestPosition({
-    timeout = 14000,
+    timeout = POSITION_ACQUISITION_TIMEOUT_MS,
     targetAccuracy = TARGET_ACCURACY_METERS,
     maxAcceptableAccuracy = MAX_ACCEPTABLE_ACCURACY_METERS,
+    maximumAge = BROWSER_POSITION_MAX_AGE_MS,
   } = {}) {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
@@ -207,7 +210,7 @@
       watchId = navigator.geolocation.watchPosition(acceptPosition, handleError, {
         enableHighAccuracy: true,
         timeout,
-        maximumAge: 0,
+        maximumAge,
       });
 
       timerId = window.setTimeout(() => {
@@ -236,7 +239,10 @@
       const accuracyText = Number.isFinite(accuracy)
         ? ` (omtrent ${formatAccuracy(accuracy)})`
         : "";
-      return `Posisjonen ble for unøyaktig${accuracyText}. Slå på presis posisjon/GPS, eller søk etter stedet.`;
+      if (Number.isFinite(accuracy) && accuracy >= 10000) {
+        return `Nettleseren ga bare en grov posisjon${accuracyText}. Slå på «Presis posisjon» for nettleseren og enhetens posisjonstjeneste, vent litt og prøv igjen. Ellers kan du søke etter stedet.`;
+      }
+      return `Posisjonen ble for unøyaktig${accuracyText}. Slå på presis posisjon/GPS, vent litt og prøv igjen, eller søk etter stedet.`;
     }
     return "Kunne ikke hente posisjon. Søk etter sted i stedet.";
   }
