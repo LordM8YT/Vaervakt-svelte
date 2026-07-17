@@ -131,13 +131,28 @@ export async function fetchCities(input) {
   return {
     data: results.map((place) => {
       const address = place.address || {};
-      const name =
+      const localName =
+        address.suburb ||
+        address.city_district ||
+        address.borough ||
+        (place.type === "suburb" ? place.name : "") ||
         address.city ||
         address.town ||
         address.village ||
         address.municipality ||
-        place.name ||
         place.display_name.split(",")[0];
+      const municipality =
+        address.city ||
+        address.town ||
+        address.village ||
+        address.municipality ||
+        address.county ||
+        "";
+      const name =
+        municipality &&
+        localName.localeCompare(municipality, "nb", { sensitivity: "base" }) !== 0
+          ? `${localName}, ${municipality}`
+          : localName;
 
       return {
         latitude: place.lat,
@@ -189,16 +204,14 @@ export async function reverseGeocode(lat, lon) {
   const place = await response.json();
   const address = place.address || {};
   const name =
-    address.quarter ||
     address.suburb ||
     address.city_district ||
-    address.neighbourhood ||
-    address.city ||
+    address.borough ||
     address.town ||
     address.village ||
+    address.city ||
     address.municipality ||
-    place.name ||
-    place.display_name?.split(",")[0] ||
+    address.county ||
     "Din posisjon";
 
   const region =
