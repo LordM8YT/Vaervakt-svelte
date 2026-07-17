@@ -10,6 +10,7 @@
     RefreshCw,
     ShieldCheck,
     Sun,
+    Trash2,
     TriangleAlert,
     Waves,
   } from "@lucide/svelte";
@@ -34,6 +35,9 @@
   const PULL_MAX_DISTANCE = 96;
   const TARGET_ACCURACY_METERS = 150;
   const MAX_ACCEPTABLE_ACCURACY_METERS = 5000;
+  const THEME_STORAGE_KEY = "vaervakt_theme";
+  const LOCATION_CACHE_KEY = "vaervakt_location_session";
+  const LOCATION_CACHE_TTL_MS = 30 * 60 * 1000;
   const DEFAULT_LOCATION = {
     name: "Kristiansand, NO",
     lat: 58.1467,
@@ -57,7 +61,97 @@
   }
 
   function getInitialTheme() {
+    try {
+      const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+      if (storedTheme === "light" || storedTheme === "dark") return storedTheme;
+    } catch {
+      // Bruk systemtema når lokal lagring er blokkert.
+    }
     return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+
+  function persistTheme(nextTheme) {
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    } catch {
+      // Temaet fungerer fortsatt i denne fanen når lokal lagring er blokkert.
+    }
+  }
+
+  function removeStoredLocation() {
+    try {
+      window.sessionStorage.removeItem(LOCATION_CACHE_KEY);
+    } catch {
+      // Posisjonen ligger fortsatt bare i minnet når sesjonslagring er blokkert.
+    }
+  }
+
+  function readStoredLocation() {
+    try {
+      const rawValue = window.sessionStorage.getItem(LOCATION_CACHE_KEY);
+      if (!rawValue) return null;
+
+      const value = JSON.parse(rawValue);
+      const expiresAt = Number(value?.expiresAt);
+      const lat = Number(value?.lat);
+      const lon = Number(value?.lon);
+      const name = typeof value?.name === "string" ? value.name.trim().slice(0, 100) : "";
+
+      if (
+        !name ||
+        !Number.isFinite(expiresAt) ||
+        expiresAt <= Date.now() ||
+        !Number.isFinite(lat) ||
+        !Number.isFinite(lon) ||
+        lat < -90 ||
+        lat > 90 ||
+        lon < -180 ||
+        lon > 180
+      ) {
+        removeStoredLocation();
+        return null;
+      }
+
+      return {
+        expiresAt,
+        location: {
+          name,
+          lat,
+          lon,
+          accuracy: Number.isFinite(Number(value?.accuracy)) ? Number(value.accuracy) : null,
+          source: value?.source === "gps" ? "gps" : "search",
+          cached: true,
+        },
+      };
+    } catch {
+      removeStoredLocation();
+      return null;
+    }
+  }
+
+  function writeStoredLocation(location) {
+    const lat = Number(location?.lat);
+    const lon = Number(location?.lon);
+    const name = typeof location?.name === "string" ? location.name.trim().slice(0, 100) : "";
+    if (!name || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+    const expiresAt = Date.now() + LOCATION_CACHE_TTL_MS;
+    const accuracy = Number(location?.accuracy);
+    const value = {
+      name,
+      lat: Number(lat.toFixed(3)),
+      lon: Number(lon.toFixed(3)),
+      accuracy: Number.isFinite(accuracy) ? Math.max(100, Math.round(accuracy)) : null,
+      source: location?.source === "gps" ? "gps" : "search",
+      expiresAt,
+    };
+
+    try {
+      window.sessionStorage.setItem(LOCATION_CACHE_KEY, JSON.stringify(value));
+      return expiresAt;
+    } catch {
+      return null;
+    }
   }
 
   function requestBestPosition({
@@ -154,6 +248,7 @@
     return `${(meters / 1000).toFixed(1).replace(".", ",")} km`;
   }
 
+  const initialLocationCache = readStoredLocation();
   let activeTab = getTabFromPath();
   let todayWeather = null;
   let todayForecast = [];
@@ -163,7 +258,10 @@
   let hasError = false;
   let locationStatus = "";
   let communityRefreshKey = 0;
-  let selectedLocation = DEFAULT_LOCATION;
+  let selectedLocation = initialLocationCache?.location || DEFAULT_LOCATION;
+  let hasCachedLocation = Boolean(initialLocationCache);
+  let locationCacheExpiresAt = initialLocationCache?.expiresAt || null;
+  let locationCacheTimerId = null;
   let theme = getInitialTheme();
   let isPrivacyOpen = false;
   let localDatetime = getLocalDatetime();
@@ -177,15 +275,29 @@
   );
   $: pullProgress = Math.min(1, pullDistance / PULL_TRIGGER_DISTANCE);
   $: communityHint = isBathSeason() ? "lokale rapporter og badetemperatur" : "lokale rapporter";
+  $: selectedLocationSource =
+    selectedLocation.cached
+      ? selectedLocation.source === "gps"
+        ? "Cache · GPS"
+        : "Cache · søk"
+      : selectedLocation.source === "gps"
+      ? Number.isFinite(Number(selectedLocation.accuracy))
+        ? `GPS · ± ${formatAccuracy(selectedLocation.accuracy)}`
+        : "GPS"
+      : selectedLocation.source === "search"
+        ? "Søk"
+        : "Standard";
   $: document.documentElement.dataset.theme = theme;
 
   async function searchChangeHandler(
     enteredData,
     showLoading = true,
     source = "search",
-    accuracy = null
+    accuracy = null,
+    fromCache = false
   ) {
     if (!enteredData?.value) return;
+    if (source !== "gps") locationStatus = "";
     const [latitude, longitude] = enteredData.value.split(" ");
     const nextLocation = {
       name: enteredData.label,
@@ -193,6 +305,7 @@
       lon: Number(longitude),
       accuracy,
       source,
+      cached: fromCache,
     };
 
     hasError = false;
@@ -204,6 +317,11 @@
       todayForecast = getTodayForecastWeather(weekResponse, now);
       todayWeather = { city: enteredData.label, ...todayResponse };
       selectedLocation = nextLocation;
+      if (!fromCache && (source === "gps" || source === "search")) {
+        locationCacheExpiresAt = writeStoredLocation(nextLocation);
+        hasCachedLocation = Boolean(locationCacheExpiresAt);
+        scheduleLocationCacheExpiry(locationCacheExpiresAt);
+      }
       weekForecast = {
         city: enteredData.label,
         list: getWeekForecastWeather(weekResponse, ALL_DESCRIPTIONS),
@@ -217,6 +335,34 @@
 
   function toggleTheme() {
     theme = theme === "dark" ? "light" : "dark";
+    persistTheme(theme);
+  }
+
+  function scheduleLocationCacheExpiry(expiresAt) {
+    if (locationCacheTimerId !== null) window.clearTimeout(locationCacheTimerId);
+    locationCacheTimerId = null;
+    if (expiresAt === null || !Number.isFinite(Number(expiresAt))) return;
+
+    locationCacheTimerId = window.setTimeout(
+      () => {
+        removeStoredLocation();
+        hasCachedLocation = false;
+        locationCacheExpiresAt = null;
+        locationCacheTimerId = null;
+        if (selectedLocation.cached) selectedLocation = { ...selectedLocation, cached: false };
+      },
+      Math.max(0, Number(expiresAt) - Date.now())
+    );
+  }
+
+  function clearLocationCache() {
+    removeStoredLocation();
+    if (locationCacheTimerId !== null) window.clearTimeout(locationCacheTimerId);
+    locationCacheTimerId = null;
+    locationCacheExpiresAt = null;
+    hasCachedLocation = false;
+    if (selectedLocation.cached) selectedLocation = { ...selectedLocation, cached: false };
+    locationStatus = "Posisjonscachen er slettet. Valgt sted brukes bare i denne åpne fanen.";
   }
 
   function changeTab(tabValue) {
@@ -255,7 +401,7 @@
         "gps",
         accuracy
       );
-      locationStatus = `Bruker ${label} · nøyaktighet ca. ${formatAccuracy(accuracy)}.`;
+      locationStatus = `Bruker ${label} · nøyaktighet ca. ${formatAccuracy(accuracy)}. Stedet mellomlagres i denne fanen i inntil 30 minutter.`;
     } catch (error) {
       locationStatus = getPositionStatusMessage(error);
     } finally {
@@ -273,13 +419,15 @@
         },
         true,
         selectedLocation.source || "refresh",
-        selectedLocation.accuracy || null
+        selectedLocation.accuracy || null,
+        Boolean(selectedLocation.cached)
       );
     }
     communityRefreshKey += 1;
   }
 
   onMount(() => {
+    scheduleLocationCacheExpiry(locationCacheExpiresAt);
     if (!isKnownTabPath()) {
       window.history.replaceState({ tab: "weather" }, "", "/");
       activeTab = "weather";
@@ -291,7 +439,8 @@
       },
       false,
       selectedLocation.source || "default",
-      selectedLocation.accuracy || null
+      selectedLocation.accuracy || null,
+      Boolean(selectedLocation.cached)
     );
 
     const dateTimer = window.setInterval(() => (localDatetime = getLocalDatetime()), 30000);
@@ -337,6 +486,7 @@
 
     return () => {
       window.clearInterval(dateTimer);
+      if (locationCacheTimerId !== null) window.clearTimeout(locationCacheTimerId);
       window.removeEventListener("popstate", handlePopState);
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchmove", handleTouchMove);
@@ -401,6 +551,28 @@
 
   <Search onSelect={searchChangeHandler} />
 
+  <div class="selected-location" aria-live="polite">
+    <div class="selected-location-copy">
+      <MapPin size={17} aria-hidden="true" />
+      <span>Valgt sted</span>
+      <strong title={selectedLocation.name}>{selectedLocation.name}</strong>
+    </div>
+    <div class="selected-location-actions">
+      <span class="selected-location-source">{selectedLocationSource}</span>
+      {#if hasCachedLocation}
+        <button
+          class="clear-location-cache"
+          type="button"
+          on:click={clearLocationCache}
+          title="Slett midlertidig lagret sted"
+        >
+          <Trash2 size={13} aria-hidden="true" />
+          Fjern cache
+        </button>
+      {/if}
+    </div>
+  </div>
+
   {#if locationStatus}
     <div class="location-status" role="status">
       <TriangleAlert size={17} />
@@ -448,11 +620,14 @@
   </main>
 
   <footer class="privacy-footer">
-    <button type="button" on:click={() => (isPrivacyOpen = true)}>
-      <ShieldCheck size={16} />
-      Personvern
-    </button>
-    <span>Ingen annonser eller individuell besøksmåling.</span>
+    <div class="privacy-footer-main">
+      <button type="button" on:click={() => (isPrivacyOpen = true)}>
+        <ShieldCheck size={16} />
+        Personvern
+      </button>
+      <span>Ingen annonser eller individuell besøksmåling.</span>
+    </div>
+    <span class="credits">Credits · Backend utviklet av Greve</span>
   </footer>
 
   <nav
