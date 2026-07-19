@@ -2,6 +2,7 @@
   import { onDestroy } from "svelte";
   import { LoaderCircle, MapPin, Search, TriangleAlert, X } from "@lucide/svelte";
   import { fetchCities } from "../../api/OpenWeatherService";
+  import { createPlaceOptions } from "../../utilities/PlaceUtils";
 
   export let onSelect = () => {};
 
@@ -44,10 +45,7 @@
     try {
       const cities = await fetchCities(value);
       if (currentRequest !== requestId) return;
-      options = cities.data.map((city) => ({
-        value: `${city.latitude} ${city.longitude}`,
-        label: `${city.name}${city.countryCode ? `, ${city.countryCode}` : ""}`,
-      }));
+      options = createPlaceOptions(cities.data);
       activeIndex = -1;
       isOpen = true;
     } catch {

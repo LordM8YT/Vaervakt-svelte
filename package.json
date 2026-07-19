@@ -16,6 +16,7 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
+    "test": "node --test",
     "build": "vite build",
     "check": "svelte-check --output human",
     "preview": "vite preview"

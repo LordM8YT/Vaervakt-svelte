@@ -9,11 +9,14 @@ Frontend for Værvakt.no, bygget med Svelte 5, Vite og Lucide-ikoner.
 - Krever ingen OpenWeather- eller RapidAPI-nøkler.
 - Starter uten valgt sted og henter først vær etter søk eller godkjent GPS-posisjon.
 - Viser vær nå, time-for-time og de neste dagene.
-- Har lokale værrapporter og badetemperatur.
+- Viser temperatur med én desimal og oppdaterer aktive værdata hvert femte minutt.
+- Åpner nettappen på samme sted som den valgte Stream Deck-knappen.
+- Har lokale værrapporter, verifiserte værstasjoner og badetemperatur.
+- Søker etter og validerer godkjente Yr-badeplasser før innsending.
 - Har lys/mørk visning og nøyaktighetskontroll for GPS-posisjon.
 - Lagrer ikke alias i nettleseren etter besøket.
 - Husker valgt lyst/mørkt tema som en lokal visningspreferanse.
-- Husker siste valgte sted lokalt; GPS-koordinater avrundes før de caches.
+- Husker siste valgte sted lokalt; GPS-koordinater beholdes med nettleserens presisjon på enheten.
 - Cacher offentlige badeplass-POI-er lokalt med 12 timers gyldighet.
 - Har innebygd personverninformasjon og avrunder rapportkoordinater.
 - Bruker `@lucide/svelte` for vær- og grensesnittikoner.
@@ -22,8 +25,8 @@ Frontend for Værvakt.no, bygget med Svelte 5, Vite og Lucide-ikoner.
 
 Frontend setter ingen informasjonskapsler og bruker ingen annonse- eller
 sporingsverktøy. Posisjon hentes bare etter et aktivt klikk. Siste valgte sted
-lagres lokalt som en visningspreferanse, og GPS-koordinater avrundes til tre
-desimaler før lagring. Offentlige badeplass-POI-er caches lokalt med 12 timers
+lagres lokalt som en visningspreferanse, og GPS-koordinater beholdes med
+nettleserens presisjon på enheten. Offentlige badeplass-POI-er caches lokalt med 12 timers
 gyldighet, uten alias eller brukeridentifikator. Utdaterte POI-oppføringer
 ryddes neste gang cachen brukes. Temaet lagres også lokalt. Annen eldre
 Værvakt-lagring og service worker-cache ryddes bort ved oppstart.

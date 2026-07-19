@@ -9,7 +9,7 @@ Stream Deck-plugin for Værvakt.no, bygget med Svelte 5, Vite og Lucide.
 - `Badetemp info` viser badeplass, avstand og tidspunkt.
 - `Siste rapport` viser siste lokale værrapport i nærheten.
 - `Send rapport` sender en hurtigrapport med aktuell temperatur.
-- `Åpne Værvakt` åpner nettsiden.
+- `Åpne Værvakt` åpner nettsiden på samme sted som knappen er konfigurert for.
 
 Property Inspector er en Svelte-app med konteksttilpassede innstillinger for hver
 handling. Knappgrafikken rendres også med Svelte og Lucide.

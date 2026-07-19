@@ -1,5 +1,6 @@
 <script>
   import { Cloud, Droplets, Thermometer, Wind } from "@lucide/svelte";
+  import { formatTemperature } from "../../utilities/TemperatureUtils";
   import WeatherIcon from "./WeatherIcon.svelte";
 
   export let data;
@@ -30,7 +31,7 @@
             </span>
           </div>
           <div class="day-metrics">
-            <span title="Temperatur"><Thermometer size={15} /> {Math.round(item.temp)}°</span>
+            <span title="Temperatur"><Thermometer size={15} /> {formatTemperature(item.temp)}°</span>
             <span title="Skydekke"><Cloud size={15} /> {item.clouds} %</span>
             <span title="Vind"><Wind size={15} /> {item.wind} m/s</span>
             <span title="Fuktighet"><Droplets size={15} /> {item.humidity} %</span>

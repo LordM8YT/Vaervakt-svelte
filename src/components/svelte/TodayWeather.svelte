@@ -1,30 +1,41 @@
 <script>
   import { Droplets, MapPin, Radio, SunMedium, Thermometer, Wind } from "@lucide/svelte";
   import { getDayMonthFromDate } from "../../utilities/DatetimeUtils";
+  import { formatTemperature } from "../../utilities/TemperatureUtils";
   import WeatherIcon from "./WeatherIcon.svelte";
 
   export let data;
   export let forecastList = [];
+  export let updatedAt = null;
 
   const dayMonth = getDayMonthFromDate();
   $: uvIndex =
     data?.main?.uvIndex == null ? null : Number(data.main.uvIndex);
+  $: updatedTime = Number.isFinite(Number(updatedAt))
+    ? new Intl.DateTimeFormat("nb-NO", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(Number(updatedAt)))
+    : "";
 </script>
 
 <section class="weather-column" aria-label="Været i dag">
   <article class="weather-panel current-panel">
     <header class="section-heading heading-with-meta">
       <span>Været nå</span>
-      <small class="live-weather"><Radio size={13} /> Live fra MET</small>
+      <small class="live-weather">
+        <Radio size={13} />
+        {updatedTime ? `MET · oppdatert ${updatedTime}` : "MET"}
+      </small>
     </header>
     <div class="current-weather">
       <div class="current-hero-copy">
         <span class="hero-location"><MapPin size={15} /> {data.city}</span>
         <div class="hero-temperature">
-          <strong>{Math.round(data.main.temp)}°</strong>
+          <strong>{formatTemperature(data.main.temp)}°</strong>
           <div>
             <span>{data.weather[0].description}</span>
-            <small>Føles som {Math.round(data.main.feels_like)}° · I dag {dayMonth}</small>
+            <small>Føles som {formatTemperature(data.main.feels_like)}° · I dag {dayMonth}</small>
           </div>
         </div>
       </div>
@@ -47,7 +58,7 @@
       <div class="metric">
         <Thermometer size={19} aria-hidden="true" />
         <span>Føles som</span>
-        <strong>{Math.round(data.main.feels_like)}°</strong>
+        <strong>{formatTemperature(data.main.feels_like)}°</strong>
       </div>
       <div class="metric">
         <Wind size={19} aria-hidden="true" />
