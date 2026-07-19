@@ -71,6 +71,28 @@ export function fetchBathTemperatures({ lat, lon }) {
   return requestJson(url, { cache: "no-store" });
 }
 
+export function fetchBathLocations(query) {
+  const url = buildUrl("/api/bath-locations.php", {
+    q: String(query || "").trim(),
+  });
+
+  return requestJson(url, { cache: "no-store" });
+}
+
+export function fetchStations(
+  { lat, lon },
+  { limit = 8, radiusKm = 35 } = {}
+) {
+  const url = buildUrl("/api/stations.php", {
+    limit,
+    lat: roundedCoordinate(lat),
+    lon: roundedCoordinate(lon),
+    radiusKm,
+  });
+
+  return requestJson(url, { cache: "no-store" });
+}
+
 export function submitReport(report) {
   return requestJson("/api/reports.php", {
     method: "POST",

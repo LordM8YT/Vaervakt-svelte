@@ -1,4 +1,5 @@
 import { formatForecastHour } from './DatetimeUtils';
+import { formatTemperatureWithUnit } from './TemperatureUtils';
 
 export function groupBy(key) {
   return function group(array) {
@@ -108,7 +109,7 @@ export const getWeekForecastWeather = (response, descriptions_list) => {
 
     dayAvgsList.push({
       date: key,
-      temp: getAverage(dayTempsList),
+      temp: getAverage(dayTempsList, false),
       humidity: getAverage(dayHumidityList),
       wind: getAverage(dayWindList, false),
       clouds: getAverage(dayCloudsList),
@@ -131,7 +132,7 @@ export const getTodayForecastWeather = (response, current_datetime) => {
         upcomingForecasts.push({
           time: formatForecastHour(item.dt),
           icon: item.weather[0].icon,
-          temperature: Math.round(item.main.temp) + ' °C',
+          temperature: formatTemperatureWithUnit(item.main.temp),
         });
       }
       return upcomingForecasts;

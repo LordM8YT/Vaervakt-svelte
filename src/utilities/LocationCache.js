@@ -17,6 +17,11 @@ export function createCachedLocation(location, preserveTimestamp = false) {
   }
 
   const isGps = location.source === "gps";
+  const source = isGps
+    ? "gps"
+    : location.source === "streamdeck"
+      ? "streamdeck"
+      : "search";
   const accuracy =
     location.accuracy === null || location.accuracy === ""
       ? Number.NaN
@@ -30,7 +35,7 @@ export function createCachedLocation(location, preserveTimestamp = false) {
     accuracy: Number.isFinite(accuracy)
       ? Math.max(0, Math.round(accuracy))
       : null,
-    source: isGps ? "gps" : "search",
+    source,
     cachedAt:
       preserveTimestamp && Number.isFinite(cachedAt) && cachedAt > 0
         ? cachedAt

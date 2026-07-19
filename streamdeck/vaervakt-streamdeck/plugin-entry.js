@@ -1,5 +1,11 @@
 import { makeKeyImage } from "./key-image.js";
-import { ACTIONS, DEFAULT_SETTINGS, modeFromAction, normalizeSettings } from "./shared.js";
+import {
+  ACTIONS,
+  DEFAULT_SETTINGS,
+  buildAppUrl,
+  modeFromAction,
+  normalizeSettings,
+} from "./shared.js";
 
 const MET_API_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact";
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -143,7 +149,7 @@ async function handleKeyDown(context) {
   if (!state) return;
 
   if (state.action === ACTIONS.open) {
-    openUrl(state.settings.apiBase);
+    openApp(state.settings);
     return;
   }
 
@@ -155,11 +161,11 @@ async function handleKeyDown(context) {
   if (!state.settings.openOnPress) return;
 
   const mode = modeFromAction(state.action);
-  if (mode === "latest") openUrl(`${state.settings.apiBase}/lokalt/`);
+  if (mode === "latest") openApp(state.settings, "/lokalt/");
   else if (mode === "bath" || mode === "bathInfo") {
-    openUrl(`${state.settings.apiBase}/bad/`);
+    openApp(state.settings, "/bad/");
   } else {
-    openUrl(state.settings.apiBase);
+    openApp(state.settings);
   }
 }
 
@@ -570,6 +576,10 @@ function showAlert(context) {
 
 function openUrl(url) {
   sendToStreamDeck({ event: "openUrl", payload: { url } });
+}
+
+function openApp(settings, path = "/") {
+  openUrl(buildAppUrl(settings, path));
 }
 
 function sendToStreamDeck(payload) {

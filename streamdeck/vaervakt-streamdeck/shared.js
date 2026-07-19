@@ -60,3 +60,15 @@ export function modeFromAction(action) {
   if (action === ACTIONS.open) return "open";
   return "weather";
 }
+
+export function buildAppUrl(settings, path = "/") {
+  const base = String(settings?.apiBase || "").replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const location = new URLSearchParams({
+    source: "streamdeck",
+    name: String(settings?.placeName || ""),
+    lat: String(settings?.lat ?? ""),
+    lon: String(settings?.lon ?? ""),
+  });
+  return `${base}${normalizedPath}#${location}`;
+}

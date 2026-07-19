@@ -1,24 +1,42 @@
 <script>
   import { onMount } from "svelte";
   import {
+    BadgeCheck,
     CheckCircle2,
+    Clock3,
+    CloudRain,
+    Droplets,
     Flag,
+    Gauge,
     LoaderCircle,
     MapPin,
+    MessageSquareText,
+    RadioTower,
     RefreshCw,
     Send,
     Thermometer,
     Waves,
+    Wifi,
+    WifiOff,
+    Wind,
     X,
   } from "@lucide/svelte";
   import {
     fetchBathTemperatures,
     fetchReports,
+    fetchStations,
     flagReport,
     submitBathTemperature,
     submitReport,
   } from "../../api/VaervaktApi";
+  import {
+    formatStationAge,
+    latestStationUpdatedAt,
+    stationUpdatedAt,
+  } from "../../utilities/StationUtils";
+  import { formatTemperature } from "../../utilities/TemperatureUtils";
   import WeatherIcon from "./WeatherIcon.svelte";
+  import BathLocationSearch from "./BathLocationSearch.svelte";
 
   export let selectedLocation;
   export let weather;
@@ -73,12 +91,24 @@
       item.distanceKm === ""
         ? null
         : Number(item.distanceKm);
+    const latitude =
+      item.lat === null || item.lat === undefined || item.lat === ""
+        ? null
+        : Number(item.lat);
+    const longitude =
+      item.lon === null || item.lon === undefined || item.lon === ""
+        ? null
+        : Number(item.lon);
     if (!name || !Number.isFinite(temperature)) return null;
 
     return {
+      locationId: String(item.locationId || "").trim().slice(0, 64),
       name,
       municipality: String(item.municipality || "").trim().slice(0, 120),
+      county: String(item.county || "").trim().slice(0, 120),
       temperature,
+      lat: latitude !== null && Number.isFinite(latitude) ? latitude : null,
+      lon: longitude !== null && Number.isFinite(longitude) ? longitude : null,
       distanceKm: distanceKm !== null && Number.isFinite(distanceKm) ? distanceKm : null,
       time: String(item.time || "").trim().slice(0, 40),
       heatedWater: Boolean(item.heatedWater),
@@ -150,8 +180,8 @@
   }
 
   function getWeatherTemp(value) {
-    const temp = value?.main?.temp;
-    return Number.isFinite(temp) ? Math.round(temp) : "";
+    const temp = Number(value?.main?.temp);
+    return Number.isFinite(temp) ? Number(temp.toFixed(1)) : "";
   }
 
   function conditionKind(condition = "") {
@@ -172,10 +202,13 @@
     return CONDITIONS.find((condition) => condition.kind === kind)?.value || "";
   }
 
-  function formatTemperature(value) {
-    const temperature = Number(value);
-    if (!Number.isFinite(temperature)) return "–";
-    return temperature.toFixed(temperature % 1 === 0 ? 0 : 1).replace(".", ",");
+  function formatStationMetric(value, maximumFractionDigits = 1) {
+    if (value === null || value === undefined || value === "") return "–";
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "–";
+    return new Intl.NumberFormat("nb-NO", {
+      maximumFractionDigits,
+    }).format(number);
   }
 
   function formatDistance(value) {
@@ -199,9 +232,11 @@
   }
 
   let reports = [];
+  let stations = [];
   let flaggingReportId = null;
   let flaggedReportIds = [];
   let isLoading = false;
+  let isReportSubmitting = false;
   let notice = null;
   let reportForm = {
     username: "",
@@ -210,7 +245,17 @@
   };
   let reportRangeHours = 24;
   let reportMeta = { total: 0, displayed: 0 };
-  let bathForm = { name: "", temperature: "", heatedWater: false };
+  let stationMeta = { total: 0, displayed: 0 };
+  let stationLoadFailed = false;
+  let bathForm = {
+    name: "",
+    locationId: "",
+    regionName: "",
+    lat: null,
+    lon: null,
+    temperature: "",
+    heatedWater: false,
+  };
   let bathTemperatures = [];
   let isBathLoading = false;
   let isBathSubmitting = false;
@@ -218,6 +263,7 @@
   let previousRefreshSignature = "";
   let previousForecastSignature = "";
   let loadSequence = 0;
+  let bathFormElement;
 
   $: location = {
     name: selectedLocation?.name || "Valgt sted",
@@ -228,6 +274,13 @@
   $: latNumber = Number(location.lat);
   $: lonNumber = Number(location.lon);
   $: hasCoordinates = Number.isFinite(latNumber) && Number.isFinite(lonNumber);
+  $: onlineStationCount = stations.filter((station) => station.online).length;
+  $: latestStationTime = latestStationUpdatedAt(stations);
+  $: selectedReportRange =
+    REPORT_RANGE_OPTIONS.find((option) => option.hours === reportRangeHours)?.label ||
+    "valgt tidsrom";
+  $: isInitialLocalLoad =
+    isLoading && stations.length === 0 && reports.length === 0;
   $: refreshSignature = [
     location.name,
     location.lat,
@@ -293,9 +346,14 @@
       activeTab === "bath" && hasCoordinates
         ? fetchBathTemperatures(location)
         : Promise.resolve({ bathing: { nearby: [] } });
-    const [reportResult, bathResult] = await Promise.allSettled([
+    const stationRequest =
+      activeTab === "local" && hasCoordinates
+        ? fetchStations(location, { limit: 8, radiusKm: 35 })
+        : Promise.resolve({ stations: [], total: 0, count: 0 });
+    const [reportResult, bathResult, stationResult] = await Promise.allSettled([
       reportRequest,
       bathRequest,
+      stationRequest,
     ]);
     if (loadId !== loadSequence) return;
 
@@ -316,6 +374,21 @@
       }
     } else if (activeTab === "bath") {
       bathTemperatures = cachedBathItems;
+    }
+
+    if (stationResult.status === "fulfilled") {
+      stations = Array.isArray(stationResult.value.stations)
+        ? stationResult.value.stations
+        : [];
+      const total = Number(stationResult.value.total);
+      const displayed = Number(stationResult.value.count);
+      stationMeta = {
+        total: Number.isFinite(total) ? total : stations.length,
+        displayed: Number.isFinite(displayed) ? displayed : stations.length,
+      };
+      stationLoadFailed = false;
+    } else if (activeTab === "local") {
+      stationLoadFailed = true;
     }
 
     const requestedResult = activeTab === "bath" ? bathResult : reportResult;
@@ -348,6 +421,7 @@
   }
 
   async function handleReportSubmit() {
+    if (isReportSubmitting) return;
     const temperature = normalizeTemp(reportForm.temperature);
     if (temperature === null || !reportForm.condition) {
       notice = { severity: "info", text: "Skriv temperatur og værtype før du sender." };
@@ -363,6 +437,7 @@
     }
 
     try {
+      isReportSubmitting = true;
       window.navigator.vibrate?.(12);
       await submitReport({
         username: reportForm.username.trim() || "Anonym",
@@ -377,6 +452,8 @@
       await refreshLocalData();
     } catch (error) {
       notice = { severity: "error", text: error.message };
+    } finally {
+      isReportSubmitting = false;
     }
   }
 
@@ -409,14 +486,26 @@
   async function handleBathSubmit() {
     const temperature = normalizeTemp(bathForm.temperature);
     const name = bathForm.name.trim();
-    if (!name || temperature === null) {
-      notice = { severity: "info", text: "Skriv badeplass og badetemperatur før du sender." };
-      return;
-    }
-    if (!hasCoordinates) {
+    if (!bathForm.locationId || !name) {
       notice = {
         severity: "info",
-        text: "Velg posisjon eller søk opp badeplassen først, så Yr får riktige koordinater.",
+        text: "Søk og velg en godkjent badeplass fra Yr-listen før du sender.",
+      };
+      return;
+    }
+    if (temperature === null || temperature < -2 || temperature > 45) {
+      notice = {
+        severity: "info",
+        text: "Badetemperaturen må være mellom -2 og 45 grader.",
+      };
+      return;
+    }
+    const bathLatitude = Number(bathForm.lat);
+    const bathLongitude = Number(bathForm.lon);
+    if (!Number.isFinite(bathLatitude) || !Number.isFinite(bathLongitude)) {
+      notice = {
+        severity: "info",
+        text: "Yr-treffet mangler koordinater. Søk og velg badeplassen på nytt.",
       };
       return;
     }
@@ -425,13 +514,22 @@
       isBathSubmitting = true;
       window.navigator.vibrate?.(10);
       const result = await submitBathTemperature({
+        locationId: bathForm.locationId,
         name,
         temperature,
-        lat: latNumber,
-        lon: lonNumber,
+        lat: bathLatitude,
+        lon: bathLongitude,
         heatedWater: bathForm.heatedWater,
       });
-      bathForm = { name: "", temperature: "", heatedWater: false };
+      bathForm = {
+        name: "",
+        locationId: "",
+        regionName: "",
+        lat: null,
+        lon: null,
+        temperature: "",
+        heatedWater: false,
+      };
       notice = {
         severity: "success",
         text: result.message || "Badetemperaturen er sendt til Yr.",
@@ -442,6 +540,53 @@
     } finally {
       isBathSubmitting = false;
     }
+  }
+
+  function handleBathLocationChange(name) {
+    bathForm = {
+      ...bathForm,
+      name,
+      locationId: "",
+      regionName: "",
+      lat: null,
+      lon: null,
+    };
+  }
+
+  function handleBathLocationSelect(locationOption) {
+    const latitude = Number(locationOption?.lat);
+    const longitude = Number(locationOption?.lon);
+    bathForm = {
+      ...bathForm,
+      name: String(locationOption?.name || ""),
+      locationId: String(locationOption?.locationId || ""),
+      regionName: String(locationOption?.regionName || ""),
+      lat: Number.isFinite(latitude) ? latitude : null,
+      lon: Number.isFinite(longitude) ? longitude : null,
+    };
+    notice = null;
+  }
+
+  function chooseNearbyBath(bath) {
+    if (!bath?.locationId) {
+      notice = {
+        severity: "info",
+        text: "Denne lagrede målingen mangler Yr-ID. Søk etter badeplassen i skjemaet.",
+      };
+      return;
+    }
+
+    handleBathLocationSelect({
+      locationId: bath.locationId,
+      name: bath.name,
+      regionName: [bath.municipality, bath.county].filter(Boolean).join(", "),
+      lat: bath.lat,
+      lon: bath.lon,
+    });
+    window.setTimeout(
+      () => bathFormElement?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      50
+    );
   }
 </script>
 
@@ -473,10 +618,9 @@
       <header class="feature-header">
         <div>
           <span class="eyebrow">Lokalt fra Værvakt</span>
-          <h2>Rapporter nær {location.name}</h2>
+          <h2>Status nær {location.name}</h2>
           <p>
-            {reportMeta.total} lokale rapporter
-            {reports[0]?.time ? ` · siste aktivitet ${reports[0].time}` : ""}
+            {reportMeta.total} brukerrapporter · {stationMeta.total} godkjente værstasjoner
           </p>
         </div>
         <button
@@ -486,9 +630,189 @@
           disabled={isLoading}
         >
           <RefreshCw size={15} class={isLoading ? "spin" : ""} />
-          {reportMeta.displayed}/{reportMeta.total}
+          Oppdater
         </button>
       </header>
+
+      <section
+        class="area-summary"
+        aria-label={`Samlet områdestatus for ${location.name}`}
+        aria-busy={isInitialLocalLoad}
+      >
+        <article class="area-summary-card official">
+          <div class="area-summary-icon">
+            <WeatherIcon kind={conditionKind(getWeatherSummary(weather))} size={21} />
+          </div>
+          <div>
+            <span>MET akkurat nå</span>
+            <strong>{formatTemperature(getWeatherTemp(weather))}°</strong>
+            <small>{getWeatherSummary(weather) || "Offisielt værvarsel"}</small>
+          </div>
+        </article>
+
+        <article class="area-summary-card">
+          <div class="area-summary-icon"><RadioTower size={20} aria-hidden="true" /></div>
+          <div>
+            <span>Værstasjoner</span>
+            <strong>{isInitialLocalLoad ? "…" : onlineStationCount}</strong>
+            <small>
+              {stationLoadFailed
+                ? "Status utilgjengelig"
+                : `online av ${stationMeta.total} i området`}
+            </small>
+          </div>
+        </article>
+
+        <article class="area-summary-card">
+          <div class="area-summary-icon">
+            <MessageSquareText size={20} aria-hidden="true" />
+          </div>
+          <div>
+            <span>Brukerrapporter</span>
+            <strong>{isInitialLocalLoad ? "…" : reportMeta.total}</strong>
+            <small>
+              {reports[0]?.time
+                ? `siste rapport ${reports[0].time}`
+                : `siste ${selectedReportRange.toLowerCase()}`}
+            </small>
+          </div>
+        </article>
+
+        <article class="area-summary-card">
+          <div class="area-summary-icon"><Clock3 size={20} aria-hidden="true" /></div>
+          <div>
+            <span>Siste måling</span>
+            <strong>
+              {isInitialLocalLoad
+                ? "…"
+                : latestStationTime
+                  ? formatStationAge(latestStationTime)
+                  : "Ingen ennå"}
+            </strong>
+            <small>{latestStationTime ? "automatisk værstasjon" : "i valgt område"}</small>
+          </div>
+        </article>
+      </section>
+
+      <section class="station-section" aria-labelledby="nearby-stations-title">
+        <div class="local-section-heading">
+          <div>
+            <span class="eyebrow">Automatiske målinger</span>
+            <h3 id="nearby-stations-title">Værstasjoner i området</h3>
+            <p>Godkjente stasjoner innenfor 35 km, sortert etter avstand.</p>
+          </div>
+          <span class="source-chip">
+            <BadgeCheck size={14} aria-hidden="true" />
+            Verifisert kilde
+          </span>
+        </div>
+
+        {#if isLoading && stations.length === 0}
+          <div class="empty-state">
+            <LoaderCircle class="spin" size={18} /> Laster værstasjoner…
+          </div>
+        {:else if stationLoadFailed && stations.length === 0}
+          <div class="empty-state">
+            Værstasjonene kunne ikke lastes akkurat nå.
+          </div>
+        {:else if stations.length === 0}
+          <div class="empty-state">
+            Ingen godkjente værstasjoner funnet innenfor 35 km.
+          </div>
+        {:else}
+          <div class="station-grid">
+            {#each stations as station}
+              <article class="station-card" class:offline={!station.online}>
+                <header>
+                  <div class="icon-tile station-icon">
+                    <RadioTower size={23} aria-hidden="true" />
+                  </div>
+                  <div class="station-heading-copy">
+                    <strong>{station.name}</strong>
+                    <span>
+                      {[station.location, formatDistance(station.distanceKm)]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </div>
+                  <span
+                    class="station-status"
+                    class:online={station.online}
+                    title={station.online
+                      ? "Stasjonen har sendt data nylig"
+                      : "Stasjonen har ikke sendt data nylig"}
+                  >
+                    {#if station.online}
+                      <Wifi size={13} aria-hidden="true" /> Online
+                    {:else}
+                      <WifiOff size={13} aria-hidden="true" /> Offline
+                    {/if}
+                  </span>
+                </header>
+
+                <div class="station-reading">
+                  <div>
+                    <Thermometer size={17} aria-hidden="true" />
+                    <strong>{formatTemperature(station.reading?.temperature)}°</strong>
+                  </div>
+                  <span>Oppdatert {formatStationAge(stationUpdatedAt(station))}</span>
+                </div>
+
+                <div class="station-metrics">
+                  {#if station.reading?.humidity !== null && station.reading?.humidity !== undefined}
+                    <span title="Luftfuktighet">
+                      <Droplets size={14} aria-hidden="true" />
+                      {formatStationMetric(station.reading.humidity, 0)} %
+                    </span>
+                  {/if}
+                  {#if station.reading?.windSpeed !== null && station.reading?.windSpeed !== undefined}
+                    <span title="Vindstyrke">
+                      <Wind size={14} aria-hidden="true" />
+                      {formatStationMetric(station.reading.windSpeed)} m/s
+                    </span>
+                  {/if}
+                  {#if station.reading?.pressure !== null && station.reading?.pressure !== undefined}
+                    <span title="Lufttrykk">
+                      <Gauge size={14} aria-hidden="true" />
+                      {formatStationMetric(station.reading.pressure, 0)} hPa
+                    </span>
+                  {/if}
+                  {#if station.reading?.rainRate !== null && station.reading?.rainRate !== undefined}
+                    <span title="Nedbør">
+                      <CloudRain size={14} aria-hidden="true" />
+                      {formatStationMetric(station.reading.rainRate)} mm/t
+                    </span>
+                  {/if}
+                </div>
+
+                <footer>
+                  <span class="verified-station">
+                    <BadgeCheck size={13} aria-hidden="true" />
+                    Verifisert værstasjon
+                  </span>
+                  <span>Automatisk måling{station.provider ? ` · ${station.provider}` : ""}</span>
+                </footer>
+              </article>
+            {/each}
+          </div>
+          {#if stationMeta.total > stationMeta.displayed}
+            <p class="station-overflow">
+              Viser de {stationMeta.displayed} nærmeste av {stationMeta.total} stasjoner.
+            </p>
+          {/if}
+        {/if}
+      </section>
+
+      <div class="local-section-heading report-section-heading">
+        <div>
+          <span class="eyebrow">Fra brukere</span>
+          <h3>Lokale værrapporter</h3>
+          <p>
+            {reportMeta.total} rapporter
+            {reports[0]?.time ? ` · siste aktivitet ${reports[0].time}` : ""}
+          </p>
+        </div>
+      </div>
 
       <div class="chip-row filter-row">
         <span>Tidsrom</span>
@@ -553,8 +877,13 @@
             Publiseres i 7 dager med omtrent 1 km stedsnøyaktighet. Ikke bruk fullt navn.
             <button type="button" on:click={onOpenPrivacy}>Les om personvern</button>
           </p>
-          <button class="primary-button" type="submit" disabled={isLoading}>
-            <Send size={17} /> Send værrapport
+          <button class="primary-button" type="submit" disabled={isReportSubmitting}>
+            {#if isReportSubmitting}
+              <LoaderCircle class="spin" size={17} />
+            {:else}
+              <Send size={17} />
+            {/if}
+            {isReportSubmitting ? "Sender rapport…" : "Send værrapport"}
           </button>
         </form>
 
@@ -635,42 +964,73 @@
                   .join(" · ")}
               </span>
               {#if bath.heatedWater}<small class="mini-chip">Oppvarmet</small>{/if}
+              {#if bath.locationId}
+                <button
+                  class="text-button bath-use-button"
+                  type="button"
+                  on:click={() => chooseNearbyBath(bath)}
+                >
+                  Bruk denne badeplassen
+                </button>
+              {/if}
             </div>
             <b>{formatTemperature(bath.temperature)}°</b>
           </article>
         {/each}
       </div>
 
-      <form class="feature-card bath-form" on:submit|preventDefault={handleBathSubmit}>
+      <form
+        class="feature-card bath-form"
+        bind:this={bathFormElement}
+        on:submit|preventDefault={handleBathSubmit}
+      >
         <div class="card-title">
           <div>
             <h3>Send ny måling</h3>
-            <p>Bruk søk eller posisjon på badeplassen først.</p>
+            <p>Søk og velg badeplassen hos Yr, så navn og koordinater blir riktige.</p>
           </div>
           <MapPin size={25} />
         </div>
         <div class="field-row">
-          <label>
-            <span>Badeplass</span>
-            <input placeholder="For eksempel Bystranda" bind:value={bathForm.name} />
-          </label>
+          <BathLocationSearch
+            value={bathForm.name}
+            selectedLocationId={bathForm.locationId}
+            onChange={handleBathLocationChange}
+            onSelect={handleBathLocationSelect}
+          />
           <label>
             <span>Badetemperatur</span>
-            <input inputmode="decimal" placeholder="19,5" bind:value={bathForm.temperature} />
+            <input
+              inputmode="decimal"
+              min="-2"
+              max="45"
+              step="0.1"
+              placeholder="19,5"
+              bind:value={bathForm.temperature}
+            />
           </label>
         </div>
+        {#if bathForm.locationId}
+          <div class="bath-location-selection" role="status">
+            <CheckCircle2 size={16} aria-hidden="true" />
+            <span>
+              Valgt fra Yr: <strong>{bathForm.name}</strong>
+              {bathForm.regionName ? ` · ${bathForm.regionName}` : ""}
+            </span>
+          </div>
+        {/if}
         <label class="switch-row">
           <input type="checkbox" bind:checked={bathForm.heatedWater} />
           <span>Oppvarmet vann</span>
         </label>
         <p class="form-hint">
-          Sender fra {location.name}
-          {hasCoordinates
-            ? ` (${latNumber.toFixed(4)}, ${lonNumber.toFixed(4)})`
-            : " uten koordinater"}.
+          {bathForm.locationId
+            ? "Koordinatene hentes fra den valgte Yr-badeplassen."
+            : "Du må velge et treff fra Yr-listen før innsending."}
         </p>
         <p class="privacy-inline">
-          Badeplass, temperatur og koordinater sendes til Yr. Værvakt lagrer ikke navnet ditt.
+          Yr-ID, badeplass, temperatur og koordinater sendes til Yr. Værvakt lagrer ikke
+          navnet ditt.
           <button type="button" on:click={onOpenPrivacy}>Les om personvern</button>
         </p>
         <button class="primary-button" type="submit" disabled={isBathSubmitting}>

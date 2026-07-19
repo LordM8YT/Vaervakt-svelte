@@ -4,12 +4,34 @@
 
   export let onClose = () => {};
   let closeButton;
+  let dialog;
 
   onMount(() => {
     const previousOverflow = document.body.style.overflow;
     const previousFocus = document.activeElement;
     const handleKeydown = (event) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = [
+        ...dialog.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ),
+      ].filter((element) => !element.hasAttribute("hidden"));
+      if (!focusable.length) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
 
     document.body.style.overflow = "hidden";
@@ -27,6 +49,7 @@
 <div class="privacy-backdrop" role="presentation">
   <dialog
     class="privacy-dialog"
+    bind:this={dialog}
     open
     aria-modal="true"
     aria-labelledby="privacy-title"
@@ -36,7 +59,7 @@
       <div class="privacy-title">
         <ShieldCheck size={24} aria-hidden="true" />
         <div>
-          <span class="eyebrow">Sist oppdatert 18. juli 2026</span>
+          <span class="eyebrow">Sist oppdatert 19. juli 2026</span>
           <h2 id="privacy-title">Personvern på Værvakt.no</h2>
         </div>
       </div>
@@ -95,10 +118,15 @@
       <article>
         <h3>Badetemperaturer</h3>
         <p>
-          Når du sender en badetemperatur, sendes badeplass, temperatur, tidspunkt og
-          koordinater videre til Yr/Meteorologisk institutt. Værvakt lagrer en teknisk
-          leveringslogg i maksimalt 30 dager og lagrer ikke navnet ditt. Opplysningene er
-          nødvendige for funksjonen du uttrykkelig ber om, jf. artikkel 6 nr. 1 bokstav b.
+          Badeplassøk sendes fra Værvakts server til Yr, slik at du kan velge en godkjent
+          Yr-badeplass. Når du sender en badetemperatur, sendes Yr-ID, badeplass,
+          temperatur, tidspunkt og koordinater videre til Yr/Meteorologisk institutt.
+          Værvakt lagrer en teknisk leveringslogg i maksimalt 30 dager og lagrer ikke
+          navnet ditt. Et kortvarig, pseudonymt sikkerhetshash av IP-adresse og nettleser
+          brukes til å begrense automatisert spam; IP-adressen lagres ikke i klartekst i
+          denne funksjonen. Opplysningene er nødvendige for funksjonen du uttrykkelig ber
+          om, jf. artikkel 6 nr. 1 bokstav b, og spamvernet bygger på vår berettigede
+          interesse i sikker drift, jf. artikkel 6 nr. 1 bokstav f.
         </p>
       </article>
 

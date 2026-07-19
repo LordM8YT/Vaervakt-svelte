@@ -5,6 +5,7 @@
     Code2,
     HeartHandshake,
     MapPin,
+    MessageCircleHeart,
     Moon,
     Search as SearchIcon,
     ShieldCheck,
@@ -20,6 +21,7 @@
   import { createCachedLocation } from "./utilities/LocationCache";
   import AppToast from "./components/svelte/AppToast.svelte";
   import BottomNav from "./components/svelte/BottomNav.svelte";
+  import FeedbackDialog from "./components/svelte/FeedbackDialog.svelte";
   import ForecastSkeleton from "./components/svelte/ForecastSkeleton.svelte";
   import LocalFeatures from "./components/svelte/LocalFeatures.svelte";
   import LocationPanel from "./components/svelte/LocationPanel.svelte";
@@ -41,6 +43,7 @@
   const MAX_ACCEPTABLE_ACCURACY_METERS = 3000;
   const POSITION_ACQUISITION_TIMEOUT_MS = 12000;
   const POSITION_TOAST_DURATION_MS = 5000;
+  const WEATHER_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
   const THEME_STORAGE_KEY = "vaervakt_theme";
   const SELECTED_LOCATION_KEY = "vaervakt_selected_location";
   const BATH_POI_CACHE_KEY = "vaervakt_bath_poi_cache_v1";
@@ -98,13 +101,39 @@
     }
   }
 
+  function loadStreamDeckLocation() {
+    try {
+      const params = new URLSearchParams(window.location.hash.slice(1));
+      if (params.get("source") !== "streamdeck") return null;
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${window.location.search}`
+      );
+      const location = createCachedLocation(
+        {
+          name: params.get("name"),
+          lat: params.get("lat"),
+          lon: params.get("lon"),
+          source: "streamdeck",
+          cachedAt: Date.now(),
+        },
+        true
+      );
+      if (!location) return null;
+      return { ...location, cached: false };
+    } catch {
+      return null;
+    }
+  }
+
   function persistSelectedLocation(location) {
     try {
       if (!location) {
         window.localStorage.removeItem(SELECTED_LOCATION_KEY);
         return;
       }
-      const cachedLocation = createCachedLocation(location);
+      const cachedLocation = createCachedLocation(location, true);
       if (!cachedLocation) return;
       window.localStorage.setItem(
         SELECTED_LOCATION_KEY,
@@ -248,6 +277,7 @@
   let todayWeather = null;
   let todayForecast = [];
   let weekForecast = null;
+  let weatherUpdatedAt = null;
   let isLoading = false;
   let isLocating = false;
   let hasError = false;
@@ -260,6 +290,7 @@
   let selectedLocation = null;
   let theme = getInitialTheme();
   let isPrivacyOpen = false;
+  let isFeedbackOpen = false;
   let isLocationPanelOpen = false;
   let localDatetime = getLocalDatetime();
   let pullDistance = 0;
@@ -285,6 +316,10 @@
         ? selectedLocation.cached
           ? "Lagret søk"
           : "Søk"
+        : selectedLocation?.source === "streamdeck"
+          ? selectedLocation.cached
+            ? "Lagret Stream Deck"
+            : "Stream Deck"
         : "";
   $: selectedLocationAge = formatLocationAge(selectedLocation?.cachedAt);
   $: isLocationMismatch =
@@ -305,14 +340,25 @@
     const loadId = ++locationLoadSequence;
     if (source !== "gps") locationStatus = "";
     const [latitude, longitude] = enteredData.value.split(" ");
+    const numericLatitude = Number(latitude);
+    const numericLongitude = Number(longitude);
+    const isSameLocation =
+      selectedLocation?.name === enteredData.label &&
+      Number(selectedLocation?.lat) === numericLatitude &&
+      Number(selectedLocation?.lon) === numericLongitude;
+    const incomingCachedAt = Number(enteredData.cachedAt);
     const nextLocation = {
       name: enteredData.label,
-      lat: Number(latitude),
-      lon: Number(longitude),
+      lat: numericLatitude,
+      lon: numericLongitude,
       accuracy,
       source,
       cached,
-      cachedAt: Date.now(),
+      cachedAt: isSameLocation
+        ? selectedLocation.cachedAt
+        : Number.isFinite(incomingCachedAt) && incomingCachedAt > 0
+          ? incomingCachedAt
+          : Date.now(),
     };
 
     selectedLocation = nextLocation;
@@ -330,6 +376,7 @@
         city: enteredData.label,
         list: getWeekForecastWeather(weekResponse, ALL_DESCRIPTIONS),
       };
+      weatherUpdatedAt = Date.now();
       needsManualPlaceSelection = false;
     } catch {
       if (loadId === locationLoadSequence) hasError = true;
@@ -370,6 +417,7 @@
     todayWeather = null;
     todayForecast = [];
     weekForecast = null;
+    weatherUpdatedAt = null;
     hasError = false;
     locationStatus = "";
     needsManualPlaceSelection = false;
@@ -398,10 +446,12 @@
     if (isLocating) return;
     if (!navigator.geolocation) {
       locationStatus = "Nettleseren støtter ikke posisjon.";
+      needsManualPlaceSelection = true;
       return;
     }
     if (!window.isSecureContext) {
       locationStatus = "Posisjon krever HTTPS. Søk etter sted i stedet.";
+      needsManualPlaceSelection = true;
       return;
     }
 
@@ -431,7 +481,7 @@
       );
     } catch (error) {
       locationStatus = getPositionStatusMessage(error);
-      needsManualPlaceSelection = error?.message === "inaccurate";
+      needsManualPlaceSelection = true;
     } finally {
       isLocating = false;
     }
@@ -454,6 +504,31 @@
     communityRefreshKey += 1;
   }
 
+  function refreshWeatherIfStale() {
+    if (
+      document.visibilityState !== "visible" ||
+      !selectedLocation?.lat ||
+      !selectedLocation?.lon ||
+      isLoading ||
+      (weatherUpdatedAt &&
+        Date.now() - weatherUpdatedAt < WEATHER_REFRESH_INTERVAL_MS)
+    ) {
+      return;
+    }
+
+    searchChangeHandler(
+      {
+        value: `${selectedLocation.lat} ${selectedLocation.lon}`,
+        label: selectedLocation.name,
+        cachedAt: selectedLocation.cachedAt,
+      },
+      false,
+      selectedLocation.source || "refresh",
+      selectedLocation.accuracy || null,
+      Boolean(selectedLocation.cached)
+    );
+  }
+
   onMount(() => {
     if (!isKnownTabPath()) {
       window.history.replaceState({ tab: "weather" }, "", "/");
@@ -461,7 +536,12 @@
     }
 
     const dateTimer = window.setInterval(() => (localDatetime = getLocalDatetime()), 30000);
+    const weatherTimer = window.setInterval(
+      refreshWeatherIfStale,
+      WEATHER_REFRESH_INTERVAL_MS
+    );
     const handlePopState = () => (activeTab = getTabFromPath());
+    const handleVisibilityChange = () => refreshWeatherIfStale();
     const handleTouchStart = (event) => {
       if (isLocating || isRefreshing || window.scrollY > 2 || event.touches.length !== 1) return;
       touchStartY = event.touches[0].clientY;
@@ -496,28 +576,32 @@
     };
 
     window.addEventListener("popstate", handlePopState);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
     window.addEventListener("touchmove", handleTouchMove, { passive: false });
     window.addEventListener("touchend", handleTouchEnd, { passive: true });
     window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
 
-    const storedLocation = loadSelectedLocation();
-    if (storedLocation) {
+    const initialLocation = loadStreamDeckLocation() || loadSelectedLocation();
+    if (initialLocation) {
       searchChangeHandler(
         {
-          value: `${storedLocation.lat} ${storedLocation.lon}`,
-          label: storedLocation.name,
+          value: `${initialLocation.lat} ${initialLocation.lon}`,
+          label: initialLocation.name,
+          cachedAt: initialLocation.cachedAt,
         },
         true,
-        storedLocation.source || "refresh",
-        storedLocation.accuracy || null,
-        true
+        initialLocation.source || "refresh",
+        initialLocation.accuracy || null,
+        Boolean(initialLocation.cached)
       );
     }
 
     return () => {
       window.clearInterval(dateTimer);
+      window.clearInterval(weatherTimer);
       window.removeEventListener("popstate", handlePopState);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);
@@ -546,8 +630,9 @@
 
 <div class="app-shell">
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Værvakt.no">
+    <a class="brand" href="/" aria-label="Værvakt.no – åpen beta">
       <img src={Logo} alt="Værvakt.no" />
+      <span class="beta-badge">Beta</span>
     </a>
     <div class="topbar-actions">
       <a class="support-mini" href={VIPPS_URL} target="_blank" rel="noopener noreferrer">
@@ -618,7 +703,7 @@
       {#if needsManualPlaceSelection}
         <button class="manual-place-button" type="button" on:click={focusPlaceSearch}>
           <SearchIcon size={14} aria-hidden="true" />
-          Velg bydel
+          Søk manuelt
         </button>
       {/if}
     </div>
@@ -647,7 +732,11 @@
     {:else if todayWeather && weekForecast}
       {#if activeTab === "weather"}
         <div class="forecast-layout">
-          <TodayWeather data={todayWeather} forecastList={todayForecast} />
+          <TodayWeather
+            data={todayWeather}
+            forecastList={todayForecast}
+            updatedAt={weatherUpdatedAt}
+          />
           <WeeklyForecast data={weekForecast} />
         </div>
         <div class="tab-hint">Bytt fane nederst for {communityHint}.</div>
@@ -664,6 +753,7 @@
       <StartExperience
         onUsePosition={usePositionHandler}
         onSearch={focusPlaceSearch}
+        onOpenFeedback={() => (isFeedbackOpen = true)}
         {isLocating}
       />
     {/if}
@@ -671,12 +761,17 @@
 
   <footer class="privacy-footer">
     <div class="privacy-footer-main">
+      <button type="button" on:click={() => (isFeedbackOpen = true)}>
+        <MessageCircleHeart size={16} />
+        Gi tilbakemelding
+      </button>
+      <span aria-hidden="true">·</span>
       <button type="button" on:click={() => (isPrivacyOpen = true)}>
         <ShieldCheck size={16} />
         Personvern
       </button>
-      <span>Ingen annonser eller individuell besøksmåling.</span>
     </div>
+    <span>Åpen beta · Ingen annonser eller individuell besøksmåling.</span>
     <span class="credits">Credits · Backend utviklet av Greve</span>
   </footer>
 
@@ -698,4 +793,8 @@
 
 {#if isPrivacyOpen}
   <PrivacyNotice onClose={() => (isPrivacyOpen = false)} />
+{/if}
+
+{#if isFeedbackOpen}
+  <FeedbackDialog onClose={() => (isFeedbackOpen = false)} />
 {/if}

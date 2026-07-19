@@ -75,7 +75,8 @@ function toOpenWeatherLikePoint(point) {
 
 export async function fetchWeatherData(lat, lon) {
   const response = await fetch(
-    `${MET_API_URL}?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`
+    `${MET_API_URL}?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
+    { cache: "no-store" }
   );
 
   if (!response.ok) {
@@ -120,7 +121,10 @@ export async function fetchCities(input) {
     "accept-language": "nb",
   });
 
-  const response = await fetch(`${NOMINATIM_API_URL}?${params.toString()}`);
+  const response = await fetch(`${NOMINATIM_API_URL}?${params.toString()}`, {
+    cache: "no-store",
+    referrerPolicy: "no-referrer",
+  });
 
   if (!response.ok) {
     throw new Error("Kunne ikke søke etter sted.");
@@ -153,11 +157,17 @@ export async function fetchCities(input) {
         localName.localeCompare(municipality, "nb", { sensitivity: "base" }) !== 0
           ? `${localName}, ${municipality}`
           : localName;
+      const region =
+        address.county ||
+        address.state ||
+        address.region ||
+        "";
 
       return {
         latitude: place.lat,
         longitude: place.lon,
         name,
+        region,
         countryCode: address.country_code?.toUpperCase() || "",
       };
     }),
