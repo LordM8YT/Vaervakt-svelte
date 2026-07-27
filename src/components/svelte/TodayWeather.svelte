@@ -18,13 +18,17 @@
       }).format(new Date(Number(updatedAt)))
     : "";
 
-  // Lets the hourly strip be scrolled by dragging with a mouse, not just touch/scrollbar.
+  // Lets the hourly strip be scrolled by dragging with a mouse.
+  // Touch/pen are left alone so the browser's native touch scrolling
+  // (momentum, etc.) handles it instead — hijacking it via pointer
+  // capture is what made it stall on phones.
   function dragScroll(node) {
     let dragging = false;
     let startX = 0;
     let scrollStart = 0;
 
     function onPointerDown(e) {
+      if (e.pointerType !== "mouse") return;
       dragging = true;
       startX = e.clientX;
       scrollStart = node.scrollLeft;
