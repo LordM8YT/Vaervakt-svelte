@@ -90,7 +90,7 @@ export async function fetchWeatherData(lat, lon) {
     throw new Error("MET returnerte ingen værdata for dette stedet.");
   }
 
-  const list = timeseries.slice(0, 56).map(toOpenWeatherLikePoint);
+  const list = timeseries.slice(0, 96).map(toOpenWeatherLikePoint);
   const current = list[0];
 
   return [

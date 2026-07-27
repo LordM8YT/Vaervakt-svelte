@@ -1,4 +1,4 @@
-import { MONTHS, DAYS } from './DateConstants';
+import { MONTHS, DAYS } from './DateConstants.js';
 
 const OSLO_TIME_ZONE = 'Europe/Oslo';
 

@@ -1,5 +1,5 @@
-import { formatForecastHour } from './DatetimeUtils';
-import { formatTemperatureWithUnit } from './TemperatureUtils';
+import { formatForecastHour } from './DatetimeUtils.js';
+import { formatTemperatureWithUnit } from './TemperatureUtils.js';
 
 export function groupBy(key) {
   return function group(array) {
@@ -139,4 +139,37 @@ export const getTodayForecastWeather = (response, current_datetime) => {
     });
 
   return upcomingForecasts.slice(0, 12);
+};
+
+export const getHourlyForecastByDate = (response, current_datetime, dayCount = 3) => {
+  if (!response || Object.keys(response).length === 0 || response.cod === '404')
+    return {};
+
+  const today = new Date(current_datetime * 1000);
+  const todayKey = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, '0'),
+    String(today.getDate()).padStart(2, '0'),
+  ].join('-');
+  const futureDateKeys = [
+    ...new Set(
+      response.list
+        .filter((item) => item.dt >= current_datetime)
+        .map((item) => item.dt_txt.substring(0, 10))
+        .filter((date) => date > todayKey)
+    ),
+  ].slice(0, dayCount);
+
+  return futureDateKeys.reduce((forecastByDate, date) => {
+    forecastByDate[date] = response.list
+      .filter((item) => item.dt_txt.substring(0, 10) === date)
+      .slice(0, 12)
+      .map((item) => ({
+        time: formatForecastHour(item.dt),
+        icon: item.weather[0].icon,
+        description: item.weather[0].description,
+        temperature: formatTemperatureWithUnit(item.main.temp),
+      }));
+    return forecastByDate;
+  }, {});
 };

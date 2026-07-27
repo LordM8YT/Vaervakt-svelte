@@ -16,7 +16,11 @@
   import Logo from "./assets/logo3.png";
   import { fetchWeatherData, reverseGeocode } from "./api/OpenWeatherService";
   import { ALL_DESCRIPTIONS } from "./utilities/DateConstants";
-  import { getTodayForecastWeather, getWeekForecastWeather } from "./utilities/DataUtils";
+  import {
+    getHourlyForecastByDate,
+    getTodayForecastWeather,
+    getWeekForecastWeather,
+  } from "./utilities/DataUtils";
   import { getLocalDatetime } from "./utilities/DatetimeUtils";
   import { createCachedLocation } from "./utilities/LocationCache";
   import AppToast from "./components/svelte/AppToast.svelte";
@@ -26,9 +30,11 @@
   import ForecastSkeleton from "./components/svelte/ForecastSkeleton.svelte";
   import LocalFeatures from "./components/svelte/LocalFeatures.svelte";
   import LocationPanel from "./components/svelte/LocationPanel.svelte";
+  import LocationRequired from "./components/svelte/LocationRequired.svelte";
   import PrivacyNotice from "./components/svelte/PrivacyNotice.svelte";
   import Search from "./components/svelte/Search.svelte";
   import StartExperience from "./components/svelte/StartExperience.svelte";
+  import SpotlightCards from "./components/svelte/SpotlightCards.svelte";
   import TodayWeather from "./components/svelte/TodayWeather.svelte";
   import WeeklyForecast from "./components/svelte/WeeklyForecast.svelte";
 
@@ -48,6 +54,13 @@
   const THEME_STORAGE_KEY = "vaervakt_theme";
   const SELECTED_LOCATION_KEY = "vaervakt_selected_location";
   const BATH_POI_CACHE_KEY = "vaervakt_bath_poi_cache_v1";
+  let WeatherPreview = null;
+
+  if (import.meta.env.DEV) {
+    import("./components/svelte/WeatherPreview.svelte").then((module) => {
+      WeatherPreview = module.default;
+    });
+  }
 
   function isBathSeason(date = new Date()) {
     const month = date.getMonth();
@@ -304,6 +317,7 @@
   let activeTab = getTabFromPath();
   let todayWeather = null;
   let todayForecast = [];
+  let hourlyForecastByDate = {};
   let weekForecast = null;
   let weatherUpdatedAt = null;
   let isLoading = false;
@@ -399,6 +413,7 @@
       const [todayResponse, weekResponse] = await fetchWeatherData(latitude, longitude);
       if (loadId !== locationLoadSequence) return false;
       todayForecast = getTodayForecastWeather(weekResponse, now);
+      hourlyForecastByDate = getHourlyForecastByDate(weekResponse, now);
       todayWeather = { city: enteredData.label, ...todayResponse };
       weekForecast = {
         city: enteredData.label,
@@ -790,7 +805,7 @@
             forecastList={todayForecast}
             updatedAt={weatherUpdatedAt}
           />
-          <WeeklyForecast data={weekForecast} />
+          <WeeklyForecast data={weekForecast} {hourlyForecastByDate} />
         </div>
         <div class="tab-hint">Bytt fane nederst for {communityHint}.</div>
       {:else}
@@ -802,6 +817,13 @@
           onOpenPrivacy={() => (isPrivacyOpen = true)}
         />
       {/if}
+    {:else if activeTab !== "weather"}
+      <LocationRequired
+        {activeTab}
+        {isLocating}
+        onUsePosition={usePositionHandler}
+        onSearch={focusPlaceSearch}
+      />
     {:else}
       <StartExperience
         onUsePosition={usePositionHandler}
@@ -809,6 +831,11 @@
         onOpenFeedback={() => (isFeedbackOpen = true)}
         {isLocating}
       />
+      {#if WeatherPreview}
+        <svelte:component this={WeatherPreview} />
+      {:else}
+        <SpotlightCards />
+      {/if}
     {/if}
   </main>
 
