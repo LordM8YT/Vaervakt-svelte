@@ -730,14 +730,31 @@ main {
 }
 
 .hourly-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  display: flex;
   gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.hourly-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.hourly-grid.is-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
 }
 
 .hour-card {
   display: flex;
-  min-width: 0;
+  flex: 0 0 auto;
+  width: 72px;
   min-height: 112px;
   flex-direction: column;
   align-items: center;
@@ -747,6 +764,7 @@ main {
   border: 1px solid rgba(255, 255, 255, 0.045);
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(171, 203, 222, 0.025));
+  scroll-snap-align: start;
 }
 
 .hour-card time {
@@ -3135,10 +3153,6 @@ html[data-theme="light"] .feedback-actions > span a {
 
   .community-shell {
     padding-top: 25px;
-  }
-
-  .hourly-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

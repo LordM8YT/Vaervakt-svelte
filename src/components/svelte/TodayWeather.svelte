@@ -17,6 +17,47 @@
         minute: "2-digit",
       }).format(new Date(Number(updatedAt)))
     : "";
+
+  // Lets the hourly strip be scrolled by dragging with a mouse, not just touch/scrollbar.
+  function dragScroll(node) {
+    let dragging = false;
+    let startX = 0;
+    let scrollStart = 0;
+
+    function onPointerDown(e) {
+      dragging = true;
+      startX = e.clientX;
+      scrollStart = node.scrollLeft;
+      node.classList.add("is-dragging");
+      node.setPointerCapture(e.pointerId);
+    }
+
+    function onPointerMove(e) {
+      if (!dragging) return;
+      node.scrollLeft = scrollStart - (e.clientX - startX);
+    }
+
+    function endDrag() {
+      dragging = false;
+      node.classList.remove("is-dragging");
+    }
+
+    node.addEventListener("pointerdown", onPointerDown);
+    node.addEventListener("pointermove", onPointerMove);
+    node.addEventListener("pointerup", endDrag);
+    node.addEventListener("pointerleave", endDrag);
+    node.addEventListener("pointercancel", endDrag);
+
+    return {
+      destroy() {
+        node.removeEventListener("pointerdown", onPointerDown);
+        node.removeEventListener("pointermove", onPointerMove);
+        node.removeEventListener("pointerup", endDrag);
+        node.removeEventListener("pointerleave", endDrag);
+        node.removeEventListener("pointercancel", endDrag);
+      },
+    };
+  }
 </script>
 
 <section class="weather-column" aria-label="Været i dag">
@@ -88,7 +129,7 @@
       <small>{forecastList.length} timevarsler</small>
     </header>
     {#if forecastList.length}
-      <div class="hourly-grid">
+      <div class="hourly-grid" use:dragScroll>
         {#each forecastList as item}
           <div class="hour-card">
             <time>{item.time}</time>

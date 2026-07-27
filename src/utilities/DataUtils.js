@@ -138,5 +138,5 @@ export const getTodayForecastWeather = (response, current_datetime) => {
       return upcomingForecasts;
     });
 
-  return upcomingForecasts.slice(0, 6);
+  return upcomingForecasts.slice(0, 12);
 };
