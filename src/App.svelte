@@ -22,7 +22,13 @@
     getWeekForecastWeather,
   } from "./utilities/DataUtils";
   import { getLocalDatetime } from "./utilities/DatetimeUtils";
-  import { createCachedLocation } from "./utilities/LocationCache";
+  import {
+    addSavedLocation,
+    createCachedLocation,
+    MAX_SAVED_LOCATIONS,
+    normalizeSavedLocations,
+    removeSavedLocation,
+  } from "./utilities/LocationCache";
   import AppToast from "./components/svelte/AppToast.svelte";
   import BottomNav from "./components/svelte/BottomNav.svelte";
   import CurrentWeatherCard from "./components/svelte/CurrentWeatherCard.svelte";
@@ -52,6 +58,7 @@
   const WEATHER_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
   const THEME_STORAGE_KEY = "vaervakt_theme";
   const SELECTED_LOCATION_KEY = "vaervakt_selected_location";
+  const SAVED_LOCATIONS_KEY = "vaervakt_saved_locations_v1";
   const BATH_POI_CACHE_KEY = "vaervakt_bath_poi_cache_v1";
   function isBathSeason(date = new Date()) {
     const month = date.getMonth();
@@ -103,6 +110,26 @@
       return { ...cachedLocation, cached: true };
     } catch {
       return null;
+    }
+  }
+
+  function loadSavedLocations() {
+    try {
+      return normalizeSavedLocations(
+        JSON.parse(window.localStorage.getItem(SAVED_LOCATIONS_KEY) || "[]")
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  function persistSavedLocations(locations) {
+    const normalized = normalizeSavedLocations(locations);
+    savedLocations = normalized;
+    try {
+      window.localStorage.setItem(SAVED_LOCATIONS_KEY, JSON.stringify(normalized));
+    } catch {
+      // Favorittene fungerer fortsatt i denne fanen når lokal lagring er blokkert.
     }
   }
 
@@ -321,6 +348,7 @@
   let toastTimer = null;
   let communityRefreshKey = 0;
   let selectedLocation = null;
+  let savedLocations = loadSavedLocations();
   let theme = getInitialTheme();
   let isPrivacyOpen = false;
   let isFeedbackOpen = false;
@@ -437,6 +465,53 @@
   async function locateFromLocationPanel() {
     isLocationPanelOpen = false;
     await usePositionHandler();
+  }
+
+  function isSameLocation(first, second) {
+    return (
+      Number(first?.lat) === Number(second?.lat) &&
+      Number(first?.lon) === Number(second?.lon)
+    );
+  }
+
+  function saveActiveLocation() {
+    if (!selectedLocation) return;
+    const alreadySaved = savedLocations.some((item) =>
+      isSameLocation(item, selectedLocation)
+    );
+    if (!alreadySaved && savedLocations.length >= MAX_SAVED_LOCATIONS) {
+      showToast("Du kan lagre maks 3 steder. Fjern ett før du legger til et nytt.", "info");
+      return;
+    }
+    persistSavedLocations(addSavedLocation(savedLocations, selectedLocation));
+    showToast(
+      alreadySaved ? `${selectedLocation.name} er allerede lagret.` : `${selectedLocation.name} er lagret.`,
+      "success"
+    );
+  }
+
+  async function selectSavedLocation(location) {
+    if (!location || isSameLocation(location, selectedLocation)) {
+      isLocationPanelOpen = false;
+      return;
+    }
+    isLocationPanelOpen = false;
+    await searchChangeHandler(
+      {
+        value: `${location.lat} ${location.lon}`,
+        label: location.name,
+        cachedAt: location.cachedAt,
+      },
+      true,
+      location.source || "search",
+      location.accuracy || null,
+      true
+    );
+  }
+
+  function removeFavoriteLocation(location) {
+    persistSavedLocations(removeSavedLocation(savedLocations, location));
+    showToast(`${location.name} er fjernet fra lagrede steder.`, "info");
   }
 
   async function copyObsWidgetLink() {
@@ -856,6 +931,10 @@
     onSearch={searchFromLocationPanel}
     onForget={forgetSelectedLocation}
     onCopyObsLink={copyObsWidgetLink}
+    {savedLocations}
+    onSave={saveActiveLocation}
+    onSelectSaved={selectSavedLocation}
+    onRemoveSaved={removeFavoriteLocation}
   />
 {/if}
 

@@ -6,8 +6,10 @@
     Copy,
     LocateFixed,
     MapPin,
+    Plus,
     Search,
     ShieldCheck,
+    Star,
     Trash2,
     X,
   } from "@lucide/svelte";
@@ -21,6 +23,10 @@
   export let onSearch = () => {};
   export let onForget = () => {};
   export let onCopyObsLink = () => {};
+  export let savedLocations = [];
+  export let onSave = () => {};
+  export let onSelectSaved = () => {};
+  export let onRemoveSaved = () => {};
 
   let closeButton;
   let panel;
@@ -137,13 +143,62 @@
     </div>
 
     {#if location}
+      <section class="saved-locations" aria-labelledby="saved-locations-title">
+        <div class="saved-locations-heading">
+          <div>
+            <strong id="saved-locations-title">Lagrede steder</strong>
+            <span>{savedLocations.length} av 3</span>
+          </div>
+          <button
+            type="button"
+            on:click={onSave}
+            disabled={savedLocations.length >= 3 && !savedLocations.some((item) => item.lat === location.lat && item.lon === location.lon)}
+          >
+            <Plus size={15} aria-hidden="true" />
+            Lagre aktivt sted
+          </button>
+        </div>
+
+        {#if savedLocations.length}
+          <div class="saved-location-list">
+            {#each savedLocations as saved}
+              <div class="saved-location-item" class:active={saved.lat === location.lat && saved.lon === location.lon}>
+                <button
+                  class="saved-location-select"
+                  type="button"
+                  on:click={() => onSelectSaved(saved)}
+                  aria-label={`Vis været for ${saved.name}`}
+                >
+                  <Star size={16} aria-hidden="true" />
+                  <span>{saved.name}</span>
+                  {#if saved.lat === location.lat && saved.lon === location.lon}
+                    <small>Aktiv</small>
+                  {/if}
+                </button>
+                <button
+                  class="saved-location-remove"
+                  type="button"
+                  on:click={() => onRemoveSaved(saved)}
+                  aria-label={`Fjern ${saved.name} fra lagrede steder`}
+                  title="Fjern lagret sted"
+                >
+                  <Trash2 size={15} aria-hidden="true" />
+                </button>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="saved-locations-empty">Lagre opptil tre steder for raskt å bytte mellom dem.</p>
+        {/if}
+      </section>
+
       <button class="secondary-button" type="button" on:click={onCopyObsLink}>
         <Copy size={18} aria-hidden="true" />
         Kopier widget-lenke (OBS)
       </button>
       <button class="forget-location-button" type="button" on:click={onForget}>
         <Trash2 size={16} aria-hidden="true" />
-        Glem lagret sted
+        Nullstill aktivt sted
       </button>
     {/if}
 

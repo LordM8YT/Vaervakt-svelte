@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createCachedLocation } from "../src/utilities/LocationCache.js";
+import {
+  addSavedLocation,
+  createCachedLocation,
+  normalizeSavedLocations,
+  removeSavedLocation,
+} from "../src/utilities/LocationCache.js";
 
 test("preserves an existing location timestamp during weather refreshes", () => {
   const cachedAt = 1_700_000_000_000;
@@ -33,6 +38,31 @@ test("rejects invalid cached coordinates", () => {
     }),
     null
   );
+});
+
+test("stores at most three unique favorite locations", () => {
+  const locations = [
+    { name: "Tinnheia", lat: 58.15, lon: 7.95, source: "search" },
+    { name: "Kvadraturen", lat: 58.146, lon: 7.995, source: "search" },
+    { name: "Grim", lat: 58.16, lon: 7.97, source: "search" },
+  ];
+  const full = locations.reduce(addSavedLocation, []);
+  const withFourth = addSavedLocation(full, {
+    name: "Feriested",
+    lat: 59,
+    lon: 10,
+    source: "search",
+  });
+
+  assert.equal(full.length, 3);
+  assert.deepEqual(withFourth, full);
+});
+
+test("deduplicates and removes favorite locations", () => {
+  const tinnheia = { name: "Tinnheia", lat: 58.15, lon: 7.95, source: "search" };
+  const normalized = normalizeSavedLocations([tinnheia, { ...tinnheia }]);
+  assert.equal(normalized.length, 1);
+  assert.deepEqual(removeSavedLocation(normalized, tinnheia), []);
 });
 
 test("keeps Stream Deck as the source of a shared location", () => {

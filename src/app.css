@@ -2338,6 +2338,136 @@ main {
   min-height: 48px;
 }
 
+.saved-locations {
+  margin-top: 14px;
+  padding: 13px;
+  border: 1px solid rgba(125, 211, 252, 0.13);
+  border-radius: 16px;
+  background: rgba(2, 7, 18, 0.28);
+}
+
+.saved-locations-heading,
+.saved-locations-heading > div {
+  display: flex;
+  align-items: center;
+}
+
+.saved-locations-heading {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.saved-locations-heading > div {
+  min-width: 0;
+  gap: 7px;
+}
+
+.saved-locations-heading strong {
+  font-size: 0.78rem;
+}
+
+.saved-locations-heading span,
+.saved-locations-empty {
+  color: var(--muted);
+  font-size: 0.64rem;
+}
+
+.saved-locations-heading button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  color: #bae6fd;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.08);
+  font-size: 0.65rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.saved-locations-heading button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.saved-location-list {
+  display: flex;
+  margin-top: 10px;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.saved-location-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.saved-location-item.active {
+  border-color: rgba(110, 231, 183, 0.28);
+  background: rgba(110, 231, 183, 0.06);
+}
+
+.saved-location-select,
+.saved-location-remove {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.saved-location-select {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: #f8fafc;
+  text-align: left;
+}
+
+.saved-location-select svg {
+  flex: 0 0 auto;
+  color: #7dd3fc;
+}
+
+.saved-location-select span {
+  overflow: hidden;
+  flex: 1;
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-location-select small {
+  color: #6ee7b7;
+  font-size: 0.58rem;
+  font-weight: 800;
+}
+
+.saved-location-remove {
+  display: grid;
+  place-items: center;
+  color: #fda4af;
+  border-left: 1px solid rgba(148, 163, 184, 0.09);
+}
+
+.saved-location-remove:hover {
+  background: rgba(251, 113, 133, 0.1);
+}
+
+.saved-locations-empty {
+  margin: 10px 0 0;
+  line-height: 1.45;
+}
+
 .forget-location-button {
   display: inline-flex;
   width: 100%;
