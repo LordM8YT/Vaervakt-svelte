@@ -91,6 +91,24 @@ canvas {
   isolation: isolate;
 }
 
+/* OBS Browser Source mode (?obs=1&lat=..&lon=..&name=..): just the
+   current-weather card, no page chrome, transparent so it floats over
+   whatever's under it on stream. */
+html.obs-overlay,
+html.obs-overlay body,
+html.obs-overlay #app {
+  min-height: 0;
+  background: transparent !important;
+}
+
+html.obs-overlay body {
+  overflow: hidden;
+}
+
+.obs-widget {
+  padding: 10px;
+}
+
 .app-shell {
   width: min(1160px, 92%);
   min-height: 100svh;

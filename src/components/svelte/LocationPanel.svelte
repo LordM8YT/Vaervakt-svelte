@@ -3,6 +3,7 @@
   import { fade, fly } from "svelte/transition";
   import {
     Clock3,
+    Copy,
     LocateFixed,
     MapPin,
     Search,
@@ -19,6 +20,7 @@
   export let onUsePosition = () => {};
   export let onSearch = () => {};
   export let onForget = () => {};
+  export let onCopyObsLink = () => {};
 
   let closeButton;
   let panel;
@@ -135,6 +137,10 @@
     </div>
 
     {#if location}
+      <button class="secondary-button" type="button" on:click={onCopyObsLink}>
+        <Copy size={18} aria-hidden="true" />
+        Kopier widget-lenke (OBS)
+      </button>
       <button class="forget-location-button" type="button" on:click={onForget}>
         <Trash2 size={16} aria-hidden="true" />
         Glem lagret sted

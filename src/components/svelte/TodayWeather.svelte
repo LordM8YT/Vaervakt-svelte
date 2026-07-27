@@ -1,22 +1,15 @@
 <script>
-  import { Droplets, MapPin, Radio, SunMedium, Thermometer, Wind } from "@lucide/svelte";
-  import { getDayMonthFromDate } from "../../utilities/DatetimeUtils";
+  import { Droplets, SunMedium, Thermometer, Wind } from "@lucide/svelte";
   import { formatTemperature } from "../../utilities/TemperatureUtils";
+  import CurrentWeatherCard from "./CurrentWeatherCard.svelte";
   import WeatherIcon from "./WeatherIcon.svelte";
 
   export let data;
   export let forecastList = [];
   export let updatedAt = null;
 
-  const dayMonth = getDayMonthFromDate();
   $: uvIndex =
     data?.main?.uvIndex == null ? null : Number(data.main.uvIndex);
-  $: updatedTime = Number.isFinite(Number(updatedAt))
-    ? new Intl.DateTimeFormat("nb-NO", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date(Number(updatedAt)))
-    : "";
 
   // Lets the hourly strip be scrolled by dragging with a mouse.
   // Touch/pen are left alone so the browser's native touch scrolling
@@ -65,35 +58,7 @@
 </script>
 
 <section class="weather-column" aria-label="Været i dag">
-  <article class="weather-panel current-panel">
-    <header class="section-heading heading-with-meta">
-      <span>Været nå</span>
-      <small class="live-weather">
-        <Radio size={13} />
-        {updatedTime ? `MET · oppdatert ${updatedTime}` : "MET"}
-      </small>
-    </header>
-    <div class="current-weather">
-      <div class="current-hero-copy">
-        <span class="hero-location"><MapPin size={15} /> {data.city}</span>
-        <div class="hero-temperature">
-          <strong>{formatTemperature(data.main.temp)}°</strong>
-          <div>
-            <span>{data.weather[0].description}</span>
-            <small>Føles som {formatTemperature(data.main.feels_like)}° · I dag {dayMonth}</small>
-          </div>
-        </div>
-      </div>
-      <div class="current-icon weather-orb">
-        <WeatherIcon
-          code={data.weather[0].icon}
-          label={data.weather[0].description}
-          size={78}
-          strokeWidth={1.45}
-        />
-      </div>
-    </div>
-  </article>
+  <CurrentWeatherCard {data} {updatedAt} />
 
   <article class="weather-panel">
     <header class="section-heading">

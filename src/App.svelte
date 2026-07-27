@@ -21,6 +21,7 @@
   import { createCachedLocation } from "./utilities/LocationCache";
   import AppToast from "./components/svelte/AppToast.svelte";
   import BottomNav from "./components/svelte/BottomNav.svelte";
+  import CurrentWeatherCard from "./components/svelte/CurrentWeatherCard.svelte";
   import FeedbackDialog from "./components/svelte/FeedbackDialog.svelte";
   import ForecastSkeleton from "./components/svelte/ForecastSkeleton.svelte";
   import LocalFeatures from "./components/svelte/LocalFeatures.svelte";
@@ -96,6 +97,33 @@
         JSON.stringify(cachedLocation)
       );
       return { ...cachedLocation, cached: true };
+    } catch {
+      return null;
+    }
+  }
+
+  // OBS (or any other) Browser Source points at one fixed URL, so the
+  // location has to travel in the query string rather than app state —
+  // same reasoning as the Stream Deck hash params below, just on `?`
+  // since this is meant to be the page's own URL, not a one-off redirect.
+  const isObsOverlay = new URLSearchParams(window.location.search).get("obs") === "1";
+  document.documentElement.classList.toggle("obs-overlay", isObsOverlay);
+
+  function loadObsOverlayLocation() {
+    if (!isObsOverlay) return null;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const location = createCachedLocation(
+        {
+          name: params.get("name"),
+          lat: params.get("lat"),
+          lon: params.get("lon"),
+          source: "obs",
+          cachedAt: Date.now(),
+        },
+        true
+      );
+      return location ? { ...location, cached: false } : null;
     } catch {
       return null;
     }
@@ -405,6 +433,23 @@
     await usePositionHandler();
   }
 
+  async function copyObsWidgetLink() {
+    if (!selectedLocation?.lat || !selectedLocation?.lon) return;
+    const params = new URLSearchParams({
+      obs: "1",
+      lat: selectedLocation.lat,
+      lon: selectedLocation.lon,
+      name: selectedLocation.name || "",
+    });
+    const url = `${window.location.origin}/?${params.toString()}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Widget-lenke kopiert! Lim inn som Browser Source i OBS.", "success");
+    } catch {
+      showToast("Kunne ikke kopiere lenken automatisk.", "error");
+    }
+  }
+
   function forgetSelectedLocation() {
     locationLoadSequence += 1;
     persistSelectedLocation(null);
@@ -582,7 +627,8 @@
     window.addEventListener("touchend", handleTouchEnd, { passive: true });
     window.addEventListener("touchcancel", handleTouchEnd, { passive: true });
 
-    const initialLocation = loadStreamDeckLocation() || loadSelectedLocation();
+    const initialLocation =
+      loadObsOverlayLocation() || loadStreamDeckLocation() || loadSelectedLocation();
     if (initialLocation) {
       searchChangeHandler(
         {
@@ -618,6 +664,13 @@
   />
 </svelte:head>
 
+{#if isObsOverlay}
+  <div class="obs-widget">
+    {#if todayWeather}
+      <CurrentWeatherCard data={todayWeather} updatedAt={weatherUpdatedAt} />
+    {/if}
+  </div>
+{:else}
 <div
   class="pull-indicator"
   class:visible={isRefreshing || pullDistance > 6}
@@ -777,6 +830,7 @@
 
   <BottomNav tabs={visibleTabs} {activeTab} onSelect={changeTab} />
 </div>
+{/if}
 
 {#if isLocationPanelOpen}
   <LocationPanel
@@ -788,6 +842,7 @@
     onUsePosition={locateFromLocationPanel}
     onSearch={searchFromLocationPanel}
     onForget={forgetSelectedLocation}
+    onCopyObsLink={copyObsWidgetLink}
   />
 {/if}
 
