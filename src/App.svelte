@@ -34,7 +34,6 @@
   import PrivacyNotice from "./components/svelte/PrivacyNotice.svelte";
   import Search from "./components/svelte/Search.svelte";
   import StartExperience from "./components/svelte/StartExperience.svelte";
-  import SpotlightCards from "./components/svelte/SpotlightCards.svelte";
   import TodayWeather from "./components/svelte/TodayWeather.svelte";
   import WeeklyForecast from "./components/svelte/WeeklyForecast.svelte";
 
@@ -54,14 +53,6 @@
   const THEME_STORAGE_KEY = "vaervakt_theme";
   const SELECTED_LOCATION_KEY = "vaervakt_selected_location";
   const BATH_POI_CACHE_KEY = "vaervakt_bath_poi_cache_v1";
-  let WeatherPreview = null;
-
-  if (import.meta.env.DEV) {
-    import("./components/svelte/WeatherPreview.svelte").then((module) => {
-      WeatherPreview = module.default;
-    });
-  }
-
   function isBathSeason(date = new Date()) {
     const month = date.getMonth();
     return month >= 4 && month <= 8;
@@ -831,11 +822,6 @@
         onOpenFeedback={() => (isFeedbackOpen = true)}
         {isLocating}
       />
-      {#if WeatherPreview}
-        <svelte:component this={WeatherPreview} />
-      {:else}
-        <SpotlightCards />
-      {/if}
     {/if}
   </main>
 
