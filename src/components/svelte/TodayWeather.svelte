@@ -1,5 +1,14 @@
 <script>
-  import { Droplets, SunMedium, Thermometer, Wind } from "@lucide/svelte";
+  import {
+    Check,
+    Clock3,
+    Droplets,
+    ShieldCheck,
+    SunMedium,
+    Thermometer,
+    TriangleAlert,
+    Wind,
+  } from "@lucide/svelte";
   import { formatTemperature } from "../../utilities/TemperatureUtils";
   import CurrentWeatherCard from "./CurrentWeatherCard.svelte";
   import WeatherIcon from "./WeatherIcon.svelte";
@@ -8,8 +17,37 @@
   export let forecastList = [];
   export let updatedAt = null;
 
+  let forecastWindow = 12;
+
   $: uvIndex =
     data?.main?.uvIndex == null ? null : Number(data.main.uvIndex);
+  $: windSpeed = Number(data?.wind?.speed ?? 0);
+  $: currentTemperature = Number(data?.main?.temp ?? 0);
+  $: weatherDescription = String(data?.weather?.[0]?.description ?? "").toLowerCase();
+  $: hasHazardousWeather =
+    windSpeed >= 17 ||
+    currentTemperature <= -18 ||
+    weatherDescription.includes("torden") ||
+    weatherDescription.includes("kraftig");
+  $: hasCautionWeather =
+    !hasHazardousWeather &&
+    (windSpeed >= 10 ||
+      currentTemperature <= -10 ||
+      weatherDescription.includes("regn") ||
+      weatherDescription.includes("snø"));
+  $: safetyTone = hasHazardousWeather ? "danger" : hasCautionWeather ? "caution" : "safe";
+  $: safetyTitle = hasHazardousWeather
+    ? "Vær ekstra forsiktig"
+    : hasCautionWeather
+      ? "Følg med på været"
+      : "Rolige forhold nå";
+  $: safetyText = hasHazardousWeather
+    ? `Krevende forhold i ${data.city}. Sjekk vind og nedbør før du drar.`
+    : hasCautionWeather
+      ? `Forholdene kan endre seg i ${data.city}. Se timevarselet før aktivitet.`
+      : `Ingen tydelige værfarer registrert i ${data.city} akkurat nå.`;
+  $: visibleForecast =
+    forecastWindow === 0 ? forecastList : forecastList.slice(0, forecastWindow);
 
   // Lets the hourly strip be scrolled by dragging with a mouse.
   // Touch/pen are left alone so the browser's native touch scrolling
@@ -58,6 +96,29 @@
 </script>
 
 <section class="weather-column" aria-label="Været i dag">
+  <article class={`weather-status weather-status--${safetyTone}`} aria-live="polite">
+    <div class="weather-status-icon" aria-hidden="true">
+      {#if safetyTone === "safe"}
+        <ShieldCheck size={24} />
+      {:else}
+        <TriangleAlert size={24} />
+      {/if}
+    </div>
+    <div class="weather-status-copy">
+      <span>Værvakt-status</span>
+      <strong>{safetyTitle}</strong>
+      <p>{safetyText}</p>
+    </div>
+    <div class="weather-status-signal">
+      {#if safetyTone === "safe"}
+        <Check size={15} />
+      {:else}
+        <Clock3 size={15} />
+      {/if}
+      Nå
+    </div>
+  </article>
+
   <CurrentWeatherCard {data} {updatedAt} />
 
   <article class="weather-panel">
@@ -95,11 +156,30 @@
   <article class="weather-panel">
     <header class="section-heading heading-with-meta">
       <span>Time for time</span>
-      <small>{forecastList.length} timevarsler</small>
+      <div class="forecast-window" aria-label="Velg tidsrom">
+        <button
+          type="button"
+          class:active={forecastWindow === 6}
+          aria-pressed={forecastWindow === 6}
+          on:click={() => (forecastWindow = 6)}>6 t</button
+        >
+        <button
+          type="button"
+          class:active={forecastWindow === 12}
+          aria-pressed={forecastWindow === 12}
+          on:click={() => (forecastWindow = 12)}>12 t</button
+        >
+        <button
+          type="button"
+          class:active={forecastWindow === 0}
+          aria-pressed={forecastWindow === 0}
+          on:click={() => (forecastWindow = 0)}>Alle</button
+        >
+      </div>
     </header>
     {#if forecastList.length}
       <div class="hourly-grid" use:dragScroll>
-        {#each forecastList as item}
+        {#each visibleForecast as item}
           <div class="hour-card">
             <time>{item.time}</time>
             <WeatherIcon code={item.icon} size={35} strokeWidth={1.7} />
