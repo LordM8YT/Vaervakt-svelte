@@ -5,6 +5,7 @@ import "./app.css";
 const PERSISTED_LOCAL_KEYS = new Set([
   "vaervakt_theme",
   "vaervakt_selected_location",
+  "vaervakt_saved_locations_v1",
   "vaervakt_bath_poi_cache_v1",
 ]);
 
