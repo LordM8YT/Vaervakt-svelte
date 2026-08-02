@@ -1,5 +1,5 @@
-export const FEEDBACK_EMAIL = "kontakt@xn--vrvakt-pua.no";
-export const FEEDBACK_EMAIL_LABEL = "kontakt@værvakt.no";
+export const FEEDBACK_EMAIL = "lordm8yt@gmail.com";
+export const FEEDBACK_EMAIL_LABEL = "lordm8yt@gmail.com";
 
 function cleanLine(value, maximumLength) {
   return String(value || "")

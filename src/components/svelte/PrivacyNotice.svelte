@@ -81,7 +81,7 @@
           LordM8YT <ExternalLink size={13} />
         </a>.
         Personvernhenvendelser kan sendes til
-        <a href="mailto:kontakt@xn--vrvakt-pua.no">kontakt@værvakt.no</a>.
+        <a href="mailto:lordm8yt@gmail.com">lordm8yt@gmail.com</a>.
       </p>
 
       <article>
